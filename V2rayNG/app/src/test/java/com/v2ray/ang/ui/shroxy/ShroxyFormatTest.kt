@@ -61,4 +61,21 @@ class ShroxyFormatTest {
         assertFalse(showEmptyState(1))
         assertFalse(showEmptyState(3))
     }
+
+    @Test
+    fun serverDelayHidesNullAndUnmeasured() {
+        assertEquals(null, formatServerDelay(null))
+        assertEquals(null, formatServerDelay(0L))
+    }
+
+    @Test
+    fun serverDelayMarksFailedTestAsNotAvailable() {
+        assertEquals(DelayText.NotAvailable, formatServerDelay(-1L))
+        assertEquals(DelayText.NotAvailable, formatServerDelay(-100L))
+    }
+
+    @Test
+    fun serverDelayKeepsPositiveValue() {
+        assertEquals(DelayText.Value(145), formatServerDelay(145L))
+    }
 }

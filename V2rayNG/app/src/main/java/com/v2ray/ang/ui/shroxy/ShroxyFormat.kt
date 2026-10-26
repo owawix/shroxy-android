@@ -22,6 +22,26 @@ fun formatSessionDuration(totalSeconds: Long): String {
 fun formatPingMillis(millis: Long): Long = millis.coerceAtLeast(0)
 
 /**
+ * Display form of a per-server bulk-test delay. The composable maps [Value] to the
+ * "%1$d ms" resource and [NotAvailable] to the "N/A" resource; null means no slot.
+ */
+sealed interface DelayText {
+    data class Value(val millis: Long) : DelayText
+    data object NotAvailable : DelayText
+}
+
+/**
+ * Maps a stored bulk-test delay to its display form: a negative value is the codebase's
+ * failed/unreachable sentinel ([DelayText.NotAvailable]); 0 or null means not measured
+ * and hides the trailing slot (existing behavior).
+ */
+fun formatServerDelay(millis: Long?): DelayText? = when {
+    millis == null || millis == 0L -> null
+    millis < 0L -> DelayText.NotAvailable
+    else -> DelayText.Value(millis)
+}
+
+/**
  * Maps the main-screen connection state to the test/ping row state: a running test wins;
  * a finished non-negative measurement stays visible as the result until the next run.
  */

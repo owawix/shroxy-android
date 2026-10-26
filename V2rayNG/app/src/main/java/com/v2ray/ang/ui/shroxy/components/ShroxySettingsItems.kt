@@ -36,6 +36,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.v2ray.ang.R
 import com.v2ray.ang.ui.compose.AppTheme
+import com.v2ray.ang.ui.compose.powerRingActiveStart
 
 /**
  * Building blocks of the Shroxy settings card (spec: settingsScreen.png).
@@ -149,7 +150,7 @@ fun ShroxyRoutingSettingRow(
             onCheckedChange = null,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = MaterialTheme.colorScheme.primary,
-                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                checkedThumbColor = MaterialTheme.colorScheme.powerRingActiveStart,
                 uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                 uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
             ),

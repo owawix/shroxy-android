@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.v2ray.ang.R
 import com.v2ray.ang.ui.compose.AppTheme
+import com.v2ray.ang.ui.shroxy.DelayText
+import com.v2ray.ang.ui.shroxy.formatServerDelay
 
 /**
  * A single server row in an expanded subscription group. Stateless: selection and identity
@@ -122,11 +124,15 @@ fun ShroxyServerRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (delayMillis != null) {
+            val delayText = formatServerDelay(delayMillis)
+            if (delayText != null) {
                 // Trailing per-server result of the group speed test; hidden until measured.
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.server_test_delay_value, delayMillis),
+                    text = when (delayText) {
+                        is DelayText.Value -> stringResource(R.string.server_test_delay_value, delayText.millis)
+                        DelayText.NotAvailable -> stringResource(R.string.ping_not_available)
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

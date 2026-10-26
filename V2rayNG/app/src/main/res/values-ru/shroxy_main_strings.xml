@@ -6,6 +6,7 @@
     <string name="test_connection">Тест подключения</string>
     <string name="checking">Проверка...</string>
     <string name="ping_ms">%1$d мс</string>
+    <string name="ping_not_available">Н/Д</string>
     <string name="collapse_all">Свернуть все</string>
     <string name="action_settings">Настройки</string>
     <string name="action_add">Добавить сервер</string>

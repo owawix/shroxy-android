@@ -7,6 +7,7 @@
     <string name="shroxy_group_more">More actions</string>
     <string name="shroxy_group_update">Update subscription</string>
     <string name="shroxy_group_delete">Delete subscription</string>
+    <string name="shroxy_group_open_subscription_url">Open subscription link</string>
     <string name="shroxy_traffic_unlimited">∞</string>
     <string-array name="shroxy_traffic_units">
         <item>B</item>

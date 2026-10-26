@@ -509,6 +509,7 @@ class MainViewModel(
                             SubscriptionInfoParser.withWebPageFallback(info, it.subscription.url)
                         },
                         lastUpdated = it.subscription.lastUpdated,
+                        subscriptionUrl = it.subscription.url,
                     )
                 }
                 val selectedGroup = resolveSelectedGroup(groups)

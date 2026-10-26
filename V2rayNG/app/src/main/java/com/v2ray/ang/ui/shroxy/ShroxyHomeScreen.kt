@@ -207,6 +207,10 @@ private fun ShroxyGroupList(
                     onMenuExpandedChange = { groupMenuExpanded[group.id] = it },
                     onUpdate = { onAction(MainAction.RefreshSubscription(group.id)) },
                     onDelete = { onAction(MainAction.DeleteSubscription(group.id)) },
+                    subscriptionUrl = group.subscriptionUrl,
+                    onOpenSubscriptionUrl = {
+                        group.subscriptionUrl?.let { onAction(MainAction.OpenSubscriptionLink(it)) }
+                    },
                 )
                 if (expanded) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {

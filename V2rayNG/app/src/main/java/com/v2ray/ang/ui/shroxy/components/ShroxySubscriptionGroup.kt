@@ -63,6 +63,8 @@ fun ShroxySubscriptionGroup(
     onMenuExpandedChange: (Boolean) -> Unit,
     onUpdate: () -> Unit,
     onDelete: () -> Unit,
+    subscriptionUrl: String? = null,
+    onOpenSubscriptionUrl: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -100,6 +102,8 @@ fun ShroxySubscriptionGroup(
             InfoStrip(
                 trafficUsedBytes = trafficUsedBytes,
                 trafficTotalBytes = trafficTotalBytes,
+                subscriptionUrl = subscriptionUrl,
+                onOpenSubscriptionUrl = onOpenSubscriptionUrl,
             )
         }
     }
@@ -206,6 +210,8 @@ private fun GroupHeader(
 private fun InfoStrip(
     trafficUsedBytes: Long?,
     trafficTotalBytes: Long?,
+    subscriptionUrl: String?,
+    onOpenSubscriptionUrl: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -229,14 +235,22 @@ private fun InfoStrip(
             textAlign = TextAlign.Center,
             modifier = Modifier.weight(1f),
         )
-        Icon(
-            imageVector = Icons.Outlined.Language,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(18.dp),
-        )
+        if (isSubscriptionUrlVisible(subscriptionUrl)) {
+            // 48dp IconButton touch target keeps the visual 18dp icon (iteration-8 lesson).
+            IconButton(onClick = onOpenSubscriptionUrl) {
+                Icon(
+                    imageVector = Icons.Outlined.Language,
+                    contentDescription = stringResource(R.string.shroxy_group_open_subscription_url),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
     }
 }
+
+/** The globe action is shown only when the subscription actually has a URL to open. */
+fun isSubscriptionUrlVisible(url: String?): Boolean = !url.isNullOrBlank()
 
 @Composable
 private fun trafficText(usedBytes: Long?, totalBytes: Long?): String? {

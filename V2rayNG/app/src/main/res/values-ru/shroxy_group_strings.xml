@@ -7,6 +7,7 @@
     <string name="shroxy_group_more">Другие действия</string>
     <string name="shroxy_group_update">Обновить подписку</string>
     <string name="shroxy_group_delete">Удалить подписку</string>
+    <string name="shroxy_group_open_subscription_url">Открыть ссылку подписки</string>
     <string name="shroxy_traffic_unlimited">∞</string>
     <string-array name="shroxy_traffic_units">
         <item>Б</item>

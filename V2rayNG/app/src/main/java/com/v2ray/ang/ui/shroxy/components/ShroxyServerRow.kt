@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -70,6 +71,22 @@ fun ShroxyServerRow(
                 role = Role.Button,
             ),
     ) {
+        if (selected) {
+            // Thin accent strip pinned flush to the left edge, drawn above the background
+            // but below the content: it never shifts the row's padding or the flag.
+            // Note: matchParentSize() forces min=max constraints equal to the whole Box,
+            // so it must NOT be used here — the trailing width(4.dp) would be overridden
+            // and fill the row.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .padding(vertical = 4.dp)
+                    .width(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.primary),
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -106,18 +123,6 @@ fun ShroxyServerRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-        }
-        if (selected) {
-            // Absolute overlay pinned flush to the left edge, drawn above the content:
-            // it never shifts the row's padding or the flag.
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .padding(vertical = 4.dp)
-                    .width(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-            )
         }
     }
 }

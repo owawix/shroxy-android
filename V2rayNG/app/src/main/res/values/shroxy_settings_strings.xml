@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shroxy settings screen -->
+    <string name="settings_title">Settings</string>
+    <string name="back">Back</string>
+    <string name="language">Language</string>
+    <string name="language_subtitle">Change app language</string>
+    <string name="routing">Routing</string>
+    <string name="routing_subtitle">Russian services will be available directly, and foreign ones will go through the proxy.</string>
+    <string name="routing_switch_on">On</string>
+    <string name="routing_switch_off">Off</string>
+</resources>

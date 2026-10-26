@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shroxy language selector -->
+    <string name="language_ru">Русский</string>
+    <string name="language_en">English</string>
+</resources>

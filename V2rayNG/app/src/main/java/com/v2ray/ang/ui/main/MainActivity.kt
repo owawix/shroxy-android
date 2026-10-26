@@ -25,6 +25,7 @@ import com.v2ray.ang.extension.toast
 import com.v2ray.ang.extension.toastError
 import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.AngConfigManager
+import com.v2ray.ang.handler.AppLocaleManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsChangeManager
 import com.v2ray.ang.handler.SettingsManager
@@ -50,6 +51,8 @@ import com.v2ray.ang.ui.server.ServerVmessActivity
 import com.v2ray.ang.ui.server.ServerWireguardActivity
 import com.v2ray.ang.ui.settings.SettingsActivity
 import com.v2ray.ang.ui.shroxy.ShroxyHomeScreen
+import com.v2ray.ang.ui.shroxy.ShroxyLanguageScreen
+import com.v2ray.ang.ui.shroxy.ShroxySettingsScreen
 import com.v2ray.ang.ui.subscription.SubSettingActivity
 import com.v2ray.ang.ui.userasset.UserAssetActivity
 import com.v2ray.ang.util.LogUtil
@@ -105,10 +108,31 @@ class MainActivity : HelperBaseComponentActivity() {
 
     @Composable
     override fun ScreenContent() {
-        BackHandler { moveTaskToBack(false) }
-        // Iteration 5 (T5.1) adds ShroxySettingsScreen; until then the settings destination
-        // is tracked as internal state and the user stays on the home screen.
         var showSettings by rememberSaveable { mutableStateOf(false) }
+        var showLanguage by rememberSaveable { mutableStateOf(false) }
+        BackHandler {
+            when {
+                showLanguage -> showLanguage = false
+                showSettings -> showSettings = false
+                else -> moveTaskToBack(false)
+            }
+        }
+        if (showLanguage) {
+            ShroxyLanguageScreen(
+                onBack = { showLanguage = false },
+                onSelectLanguage = { code -> AppLocaleManager.setApplicationLanguage(code) },
+            )
+            return
+        }
+        if (showSettings) {
+            ShroxySettingsScreen(
+                mainViewModel = mainViewModel,
+                onAction = { mainViewModel.onAction(it) },
+                onBack = { showSettings = false },
+                onOpenLanguage = { showLanguage = true },
+            )
+            return
+        }
         ShroxyHomeScreen(
             mainViewModel = mainViewModel,
             onAction = { action ->

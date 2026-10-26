@@ -19,6 +19,7 @@ import com.v2ray.ang.extension.delay
 import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.matchesPattern
 import com.v2ray.ang.extension.moveItem
+import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.handler.SubscriptionInfoParser
 import com.v2ray.ang.ui.base.BaseViewModel
 import com.v2ray.ang.util.LogUtil
@@ -86,7 +87,8 @@ class MainViewModel(
             selectedGroupId = dataSource.getSelectedSubscriptionId(),
             selectedGuid = dataSource.getSelectServer(),
             confirmRemove = dataSource.getConfirmRemove(),
-            doubleColumnDisplay = dataSource.getDoubleColumnDisplay()
+            doubleColumnDisplay = dataSource.getDoubleColumnDisplay(),
+            bypassRu = SettingsManager.isShroxyBypassRu()
         )
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
@@ -321,6 +323,7 @@ class MainViewModel(
             is MainAction.Search -> filterConfig(action.query)
             is MainAction.ImportBatchConfig -> importBatchConfig(action.configText)
             MainAction.LocateHandled -> consumeLocateTarget()
+            is MainAction.SetBypassRu -> setBypassRu(action.enabled)
             is MainAction.ShareQRCode -> {
                 val bitmap = dataSource.share2QRCode(action.guid)
                 _uiState.update { it.copy(shareQRCodeBitmap = bitmap) }
@@ -1005,6 +1008,18 @@ class MainViewModel(
 
     private fun consumeLocateTarget() {
         _uiState.update { it.copy(locateTarget = null) }
+    }
+
+    // ---------- Shroxy settings ----------
+    private fun setBypassRu(enabled: Boolean) {
+        SettingsManager.setShroxyBypassRu(enabled)
+        _uiState.update { it.copy(bypassRu = enabled) }
+        // Same restart mechanism as the legacy live settings (MSG_STATE_RESTART, see
+        // SettingsChangeManager/LauncherManager): regenerate the core config and restart
+        // the daemon only while connected; otherwise the new mode applies on next connect.
+        if (uiState.value.isRunning) {
+            dataSource.sendMsg2Service(AppConfig.MSG_STATE_RESTART, "")
+        }
     }
 
     // ---------- Running state ----------

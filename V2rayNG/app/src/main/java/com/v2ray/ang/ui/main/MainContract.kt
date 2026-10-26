@@ -28,7 +28,9 @@ data class MainUiState(
     val doubleColumnDisplay: Boolean = false,
     val shareQRCodeBitmap: android.graphics.Bitmap? = null,
     /** IDs of subscription groups whose server list is expanded (empty = all collapsed). */
-    val expandedGroupIds: Set<String> = emptySet()
+    val expandedGroupIds: Set<String> = emptySet(),
+    /** Shroxy bypass-RU routing mode (PREF_SHROXY_BYPASS_RU); false = global proxy mode. */
+    val bypassRu: Boolean = false
 )
 
 /**
@@ -77,4 +79,7 @@ sealed interface MainAction {
     data class ImportBatchConfig(val configText: String) : MainAction
 
     data object LocateHandled : MainAction
+
+    /** Toggle Shroxy bypass-RU routing; restarts the core when the service is running. */
+    data class SetBypassRu(val enabled: Boolean) : MainAction
 }

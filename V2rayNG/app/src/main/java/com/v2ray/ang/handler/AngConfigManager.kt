@@ -627,11 +627,22 @@ object AngConfigManager {
      * @param url The URL.
      * @return The number of subscriptions imported.
      */
-    private fun importUrlAsSubscription(url: String): Int {
+    /**
+     * Serializes subscription-URL imports. Concurrent imports of the same URL (e.g. a
+     * double deep-link open) must not race past the dedupe check and create duplicate
+     * subscriptions for one URL; the lock also keeps re-import retries ordered.
+     */
+    private val subImportLock = Any()
+
+    private fun importUrlAsSubscription(url: String): Int = synchronized(subImportLock) {
         val subscriptions = MmkvManager.decodeSubscriptions()
         subscriptions.forEach {
             if (it.subscription.url == url) {
-                return 0
+                // Re-importing a known URL means "retry the update": a failed first import
+                // leaves a serverless subscription that the group filter hides from the UI,
+                // so deduping here would dead-end every retry. Returning 1 makes
+                // importBatchConfig run updateConfigViaSubAll(), which refetches it.
+                return@synchronized 1
             }
         }
         val uri = URI(Utils.fixIllegalUrl(url))
@@ -639,7 +650,7 @@ object AngConfigManager {
         subItem.remarks = subscriptionImportName(uri)
         subItem.url = url
         MmkvManager.encodeSubscription("", subItem)
-        return 1
+        1
     }
 
     /**

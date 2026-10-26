@@ -1,6 +1,6 @@
-# v2rayNG
+# Shroxy
 
-A V2Ray client for Android, support [Xray core](https://github.com/XTLS/Xray-core) and [v2fly core](https://github.com/v2fly/v2ray-core)
+Shroxy is a simplified rework (fork) of [v2rayNG](https://github.com/2dust/v2rayNG), a V2Ray client for Android built on the [Xray core](https://github.com/XTLS/Xray-core). This build ships a dark-only UI, Russian/English locales, and routing with direct RU-bypass by default.
 
 [![API](https://img.shields.io/badge/API-24%2B-yellow.svg?style=flat)](https://developer.android.com/about/versions/lollipop)
 [![Kotlin Version](https://img.shields.io/badge/Kotlin-2.4.0-blue.svg)](https://kotlinlang.org)

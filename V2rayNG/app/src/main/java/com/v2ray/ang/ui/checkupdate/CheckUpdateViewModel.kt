@@ -31,6 +31,12 @@ class CheckUpdateViewModel(application: Application) : BaseViewModel(application
     }
 
     fun checkForUpdates() {
+        // Shroxy fork: 2dust v2rayNG update checks are disabled (plan decision 6). The hidden
+        // CheckUpdateActivity may still invoke this, so fail silently without network or dialogs.
+        if (!UPDATE_CHECK_ENABLED) {
+            LogUtil.i(AppConfig.TAG, "Update check disabled in Shroxy; ignoring request")
+            return
+        }
         launchLoading {
             try {
                 val result = UpdateCheckerManager.checkForUpdate(_checkPreRelease.value)
@@ -49,5 +55,10 @@ class CheckUpdateViewModel(application: Application) : BaseViewModel(application
 
     fun dismissUpdateDialog() {
         _showUpdateDialog.value = false
+    }
+
+    private companion object {
+        // Shroxy fork never offers 2dust v2rayNG updates; keep UpdateCheckerManager intact.
+        const val UPDATE_CHECK_ENABLED = false
     }
 }

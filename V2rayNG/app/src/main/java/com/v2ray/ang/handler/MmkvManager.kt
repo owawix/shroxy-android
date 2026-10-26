@@ -50,6 +50,9 @@ object MmkvManager {
     private const val KEY_SUB_SERVER_PREFIX = "SUB_SERVERS_"
     private const val KEY_SUB_IDS = "SUB_IDS"
     private const val KEY_WEBDAV_CONFIG = "WEBDAV_CONFIG"
+    private const val KEY_GEO_LAST_CHECKED_AT = "pref_shroxy_geo_last_checked_at"
+    private const val KEY_GEO_LAST_ETAG = "pref_shroxy_geo_last_etag"
+    private const val KEY_GEO_LAST_TAG = "pref_shroxy_geo_last_tag"
 
     private val recoveryHandler = object : MMKVHandler {
         override fun onMMKVCRCCheckFail(mmapID: String) =
@@ -1047,6 +1050,64 @@ object MmkvManager {
                 }
         }
         return state
+    }
+
+    //endregion
+
+    //region Shroxy geo update
+
+    /**
+     * Decodes the last geo update check timestamp.
+     *
+     * @return Epoch millis of the last successful geo update check, 0 if never checked.
+     */
+    fun decodeGeoLastCheckedAt(): Long {
+        return mainStorage.decodeLong(KEY_GEO_LAST_CHECKED_AT, 0L)
+    }
+
+    /**
+     * Encodes the last geo update check timestamp.
+     *
+     * @param value Epoch millis of the last successful geo update check.
+     */
+    fun encodeGeoLastCheckedAt(value: Long) {
+        mainStorage.encode(KEY_GEO_LAST_CHECKED_AT, value)
+    }
+
+    /**
+     * Decodes the ETag of the last geo release check.
+     *
+     * @return The stored ETag, or null if none.
+     */
+    fun decodeGeoLastETag(): String? {
+        return mainStorage.decodeString(KEY_GEO_LAST_ETAG)
+    }
+
+    /**
+     * Encodes the ETag of the last geo release check.
+     *
+     * @param value The ETag, or null to clear.
+     */
+    fun encodeGeoLastETag(value: String?) {
+        mainStorage.encode(KEY_GEO_LAST_ETAG, value)
+    }
+
+    /**
+     * Decodes the release tag of the last installed geo files.
+     *
+     * @return The stored release tag, or null if none.
+     */
+    fun decodeGeoLastTag(): String? {
+        return mainStorage.decodeString(KEY_GEO_LAST_TAG)
+    }
+
+    /**
+     * Encodes the release tag of the last installed geo files.
+     *
+     * @param value The release tag, or null to clear.
+     */
+    fun encodeGeoLastTag(value: String?) {
+        mainStorage.encode(KEY_GEO_LAST_TAG, value)
     }
 
     //endregion

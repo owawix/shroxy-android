@@ -23,6 +23,7 @@ import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.handler.SubscriptionUpdater
 import com.v2ray.ang.helper.MessageHelper
+import com.v2ray.ang.service.GeoUpdateWorker
 import com.v2ray.ang.util.LogUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.channels.Channel
@@ -227,6 +228,7 @@ class MainRepository(
 
     override fun syncSubscriptions() {
         SubscriptionUpdater.sync(app)
+        GeoUpdateWorker.sync(app)
     }
 
     override fun initAssets() {

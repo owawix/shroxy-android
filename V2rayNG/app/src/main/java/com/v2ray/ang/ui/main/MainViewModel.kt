@@ -930,37 +930,48 @@ class MainViewModel(
     fun testAllRealPing(onlyTcp: Boolean = false, groupId: String? = null) {
         cancelAllPing()
         val targetGroupId = groupId ?: uiState.value.selectedGroupId
-        val servers = mutableServerGroupState(targetGroupId).value.servers
-        if (servers.isEmpty()) {
-            return
-        }
-        val serverGuids = servers.map { it.guid }
-        mutableServerGroupState(targetGroupId).update { current ->
-            current.copy(
-                servers = current.servers.map { server ->
-                    if (server.testDelayMillis == 0L) server
-                    else server.copy(testDelayMillis = 0L)
-                },
-                rows = current.rows.map { row ->
-                    if (row.testDelayMillis == 0L) row
-                    else row.copy(testDelayMillis = 0L)
-                }
-            )
-        }
-        val request = testRequests.beginBulk(targetGroupId)
-        val message = TestServiceMessage(
-            key = AppConfig.MSG_MEASURE_CONFIG_START,
-            subscriptionId = targetGroupId,
-            serverGuids = if (keywordFilter.isNotEmpty()) serverGuids else emptyList(),
-            onlyTcp = onlyTcp
-        )
-        _uiState.update {
-            it.copy(
-                isTesting = true,
-                status = MainStatus.Testing
-            )
-        }
+        val keywordFiltered = keywordFilter.isNotEmpty()
         bulkTestJob = viewModelScope.launch {
+            // Resolve the measured GUIDs from storage, not the group UI flow: the speed
+            // action on a group card must test every server of the subscription even when
+            // that group was never expanded and its ServerGroupUiState is still empty.
+            // With an active keyword filter the UI flow already holds the filtered subset.
+            // MMKV reads run on the IO dispatcher, off the main thread.
+            val serverGuids = withContext(ioDispatcher) {
+                if (keywordFiltered) {
+                    mutableServerGroupState(targetGroupId).value.servers.map { it.guid }
+                } else {
+                    dataSource.getServerGuidList(targetGroupId)
+                }
+            }
+            if (serverGuids.isEmpty()) {
+                return@launch
+            }
+            mutableServerGroupState(targetGroupId).update { current ->
+                current.copy(
+                    servers = current.servers.map { server ->
+                        if (server.testDelayMillis == 0L) server
+                        else server.copy(testDelayMillis = 0L)
+                    },
+                    rows = current.rows.map { row ->
+                        if (row.testDelayMillis == 0L) row
+                        else row.copy(testDelayMillis = 0L)
+                    }
+                )
+            }
+            val request = testRequests.beginBulk(targetGroupId)
+            val message = TestServiceMessage(
+                key = AppConfig.MSG_MEASURE_CONFIG_START,
+                subscriptionId = targetGroupId,
+                serverGuids = if (keywordFiltered) serverGuids else emptyList(),
+                onlyTcp = onlyTcp
+            )
+            _uiState.update {
+                it.copy(
+                    isTesting = true,
+                    status = MainStatus.Testing
+                )
+            }
             withContext(ioDispatcher) {
                 dataSource.clearAllTestDelayResults(serverGuids)
                 val resetGuids = serverGuids.toHashSet()

@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui.shroxy.components
 
+import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -17,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
@@ -55,13 +57,17 @@ fun ShroxyPowerButton(
     }
     val innerColor = if (active) colors.powerRingActiveStart else colors.onSurfaceVariant
     val contentColor = if (active) colors.onPrimary else colors.powerRingInactiveEnd
+    val view = LocalView.current
 
     Box(
         modifier = modifier
             .size(176.dp)
             .background(Brush.linearGradient(ringGradient), CircleShape)
             .clip(CircleShape)
-            .clickable(onClick = onClick)
+            .clickable(onClick = {
+                view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                onClick()
+            })
             .semantics(mergeDescendants = true) {},
         contentAlignment = Alignment.Center,
     ) {

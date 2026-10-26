@@ -55,6 +55,7 @@ fun ShroxySubscriptionGroup(
     trafficUsedBytes: Long?,
     trafficTotalBytes: Long?,
     expanded: Boolean,
+    hasRows: Boolean,
     menuExpanded: Boolean,
     onToggleExpand: () -> Unit,
     onRefresh: () -> Unit,
@@ -68,7 +69,15 @@ fun ShroxySubscriptionGroup(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
+        // Expanded with rows: server rows continue below the card, so the bottom edge is
+        // square. Collapsed or expanded with no rows (loading / filter no-match): the
+        // traffic strip is the last element, so the bottom stays rounded.
+        shape = RoundedCornerShape(
+            topStart = 16.dp,
+            topEnd = 16.dp,
+            bottomStart = if (expanded && hasRows) 0.dp else 16.dp,
+            bottomEnd = if (expanded && hasRows) 0.dp else 16.dp,
+        ),
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
@@ -201,8 +210,8 @@ private fun InfoStrip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // Layer 2 strip flush with the card's bottom edge: no shape, so its corners are
-            // square and the card's 16dp radius clips them.
+            // Layer 2 strip; corner rounding comes from the card's Surface shape (square
+            // bottom when expanded, 16dp when collapsed).
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -253,6 +262,7 @@ private fun ShroxySubscriptionGroupCollapsedPreview() {
             trafficUsedBytes = 3_800_000_000_000L,
             trafficTotalBytes = 0L,
             expanded = false,
+            hasRows = false,
             menuExpanded = false,
             onToggleExpand = {},
             onRefresh = {},
@@ -274,6 +284,7 @@ private fun ShroxySubscriptionGroupExpandedPreview() {
             trafficUsedBytes = 3_800_000_000_000L,
             trafficTotalBytes = 10_000_000_000_000L,
             expanded = true,
+            hasRows = true,
             menuExpanded = false,
             onToggleExpand = {},
             onRefresh = {},

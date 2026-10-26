@@ -23,6 +23,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.v2ray.ang.R
 import com.v2ray.ang.ui.compose.AppTheme
@@ -41,6 +42,9 @@ fun ShroxyServerRow(
     selected: Boolean,
     onClick: (String) -> Unit,
     modifier: Modifier = Modifier,
+    bottomCornerRadius: Dp = 0.dp,
+    /** Last bulk-test delay for this server in ms; null (or absent) hides the trailing value. */
+    delayMillis: Long? = null,
 ) {
     // A leading emoji flag is rendered once — as the flag icon — not duplicated in the title.
     val leading = remember(title) { CountryFlags.stripLeadingFlag(title) }
@@ -48,34 +52,30 @@ fun ShroxyServerRow(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            // Layer 1; sits flush on the expanded group card (surfaceContainer, also Layer 1).
-            .background(if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceContainer)
+            // Layer 1 (Layer 2 when selected); sits flush on the expanded group card
+            // (surfaceContainer, also Layer 1). Square top corners — the rows visually
+            // continue the card; the last row rounds only its bottom corners.
+            .background(
+                color = if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceContainer,
+                shape = RoundedCornerShape(
+                    topStart = 0.dp,
+                    topEnd = 0.dp,
+                    bottomStart = bottomCornerRadius,
+                    bottomEnd = bottomCornerRadius,
+                ),
+            )
             .selectable(
                 selected = selected,
                 onClick = { onClick(serverGuid) },
                 role = Role.Button,
             ),
     ) {
-        if (selected) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 12.dp, top = 4.dp, bottom = 4.dp)
-                    .width(4.dp)
-                    .heightIn(min = 40.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = if (selected) 24.dp else 12.dp,
-                    top = 10.dp,
-                    bottom = 10.dp,
-                    end = 12.dp,
-                ),
+                // Content padding is identical in selected and unselected states; the
+                // accent bar below is an absolute overlay that never participates in layout.
+                .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CountryFlag(
@@ -97,6 +97,27 @@ fun ShroxyServerRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (delayMillis != null) {
+                // Trailing per-server result of the group speed test; hidden until measured.
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = stringResource(R.string.server_test_delay_value, delayMillis),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (selected) {
+            // Absolute overlay pinned flush to the left edge, drawn above the content:
+            // it never shifts the row's padding or the flag.
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .padding(vertical = 4.dp)
+                    .width(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(MaterialTheme.colorScheme.primary),
+            )
         }
     }
 }
@@ -113,6 +134,7 @@ private fun ShroxyServerRowSelectedPreview() {
             country = "SE",
             selected = true,
             onClick = {},
+            delayMillis = 145,
         )
     }
 }
@@ -129,6 +151,7 @@ private fun ShroxyServerRowUnselectedPreview() {
             country = null,
             selected = false,
             onClick = {},
+            bottomCornerRadius = 16.dp,
         )
     }
 }

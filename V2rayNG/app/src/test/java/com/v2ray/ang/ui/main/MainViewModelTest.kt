@@ -3,9 +3,17 @@ package com.v2ray.ang.ui.main
 import android.app.Application
 import com.v2ray.ang.AppConfig
 import com.v2ray.ang.R
+import com.v2ray.ang.dto.RealPingResult
+import com.v2ray.ang.dto.TestServiceMessage
+import com.v2ray.ang.dto.entities.ProfileItem
+import com.v2ray.ang.dto.entities.ServerAffiliationInfo
+import com.v2ray.ang.dto.entities.SubscriptionCache
+import com.v2ray.ang.dto.entities.SubscriptionItem
+import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.handler.MmkvTestStorage
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -26,6 +34,8 @@ import org.mockito.Mockito.mockStatic
 import org.mockito.Mockito.never
 import org.mockito.Mockito.timeout
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
@@ -183,6 +193,107 @@ class MainViewModelTest {
 
         assertEquals(false, viewModel.uiState.value.isTesting)
         assertNull(viewModel.uiState.value.status as? MainStatus.Testing)
+    }
+
+    @Test
+    fun testAllServersResolvesEveryServerGuidOfTheGroupFromStorage() {
+        val dataSource = newDataSource()
+        runBlocking {
+            whenever(dataSource.getServerGuidList("group-1")).thenReturn(listOf("g1", "g2", "g3"))
+            whenever(dataSource.getServerGuidList("group-2")).thenReturn(listOf("x1"))
+        }
+        val viewModel = newViewModel(dataSource)
+
+        // The group was never expanded: its ServerGroupUiState is empty. The speed
+        // action must still measure every server of the subscription (storage-based).
+        viewModel.onAction(MainAction.TestAllServers("group-1"))
+
+        val messageCaptor = argumentCaptor<TestServiceMessage>()
+        runBlocking {
+            verify(dataSource, timeout(5_000)).clearAllTestDelayResults(listOf("g1", "g2", "g3"))
+            verify(dataSource, timeout(5_000)).sendMsg2TestService(messageCaptor.capture(), anyOrNull())
+        }
+        assertEquals(AppConfig.MSG_MEASURE_CONFIG_START, messageCaptor.firstValue.key)
+        assertEquals("group-1", messageCaptor.firstValue.subscriptionId)
+        assertEquals(true, messageCaptor.firstValue.onlyTcp)
+        // No keyword filter: the service expands the whole subscription list itself.
+        assertEquals(emptyList<String>(), messageCaptor.firstValue.serverGuids)
+        runBlocking {
+            verify(dataSource, never()).clearAllTestDelayResults(listOf("x1"))
+        }
+        assertEquals(true, viewModel.uiState.value.isTesting)
+    }
+
+    @Test
+    fun testAllServersDelaysSurfacePerRowByGuidAndLeaveOtherGroupsAlone() {
+        val dataSource = newDataSource()
+        val events = MutableSharedFlow<MainServiceEvent>(extraBufferCapacity = 16)
+        // Emulates CoreTestService persisting each result before the batch finishes,
+        // so the post-finish group reload reads the same delays back.
+        val persistedDelays = mutableMapOf<String, Long>()
+        runBlocking {
+            whenever(dataSource.mainServiceEvent).thenReturn(events)
+            whenever(dataSource.getSubscriptions()).thenReturn(
+                listOf(subCache("group-1"), subCache("group-2"))
+            )
+            whenever(dataSource.getServerGuidList("group-1")).thenReturn(listOf("g1", "g2"))
+            whenever(dataSource.getServerGuidList("group-2")).thenReturn(listOf("x1"))
+            listOf("g1", "g2", "x1").forEach { guid ->
+                whenever(dataSource.decodeServerConfig(guid)).thenReturn(
+                    ProfileItem(configType = EConfigType.VLESS, remarks = guid)
+                        .apply { description = "desc-$guid" }
+                )
+                whenever(dataSource.decodeAffiliationInfo(guid)).thenAnswer {
+                    persistedDelays[guid]?.let { aff -> ServerAffiliationInfo(testDelayMillis = aff) }
+                }
+            }
+        }
+        val viewModel = newViewModel(dataSource)
+        awaitRows(viewModel, "group-1", 2)
+        awaitRows(viewModel, "group-2", 1)
+
+        var requestId: String? = null
+        runBlocking {
+            whenever(dataSource.sendMsg2TestService(any(), anyOrNull())).thenAnswer {
+                requestId = it.getArgument(1)
+            }
+        }
+        viewModel.onAction(MainAction.TestAllServers("group-1"))
+        awaitTrue(5_000) { requestId != null }
+        val id = requestId.orEmpty()
+
+        // Same delivery contract as CoreTestService: one success per server, then finish.
+        persistedDelays["g1"] = 120L
+        events.tryEmit(MainServiceEvent.MeasureConfigSuccess(RealPingResult("g1", 120L), id))
+        persistedDelays["g2"] = 250L
+        events.tryEmit(MainServiceEvent.MeasureConfigSuccess(RealPingResult("g2", 250L), id))
+        events.tryEmit(MainServiceEvent.MeasureConfigFinish(id))
+
+        awaitTrue(5_000) {
+            viewModel.serverGroupState("group-1").value.rows
+                .firstOrNull { it.guid == "g1" }?.testDelayMillis == 120L
+        }
+        val rows = viewModel.serverGroupState("group-1").value.rows
+        assertEquals(120L, rows.first { it.guid == "g1" }.testDelayMillis)
+        assertEquals(250L, rows.first { it.guid == "g2" }.testDelayMillis)
+        // The other group is untouched by this batch.
+        assertEquals(0L, viewModel.serverGroupState("group-2").value.rows
+            .first { it.guid == "x1" }.testDelayMillis)
+    }
+
+    private fun subCache(guid: String) =
+        SubscriptionCache(guid, SubscriptionItem(remarks = guid))
+
+    private fun awaitRows(viewModel: MainViewModel, groupId: String, size: Int) {
+        awaitTrue(5_000) { viewModel.serverGroupState(groupId).value.rows.size == size }
+        assertEquals(size, viewModel.serverGroupState(groupId).value.rows.size)
+    }
+
+    private fun awaitTrue(timeoutMillis: Long, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        while (!condition() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(20)
+        }
     }
 
     @Test

@@ -173,12 +173,13 @@ private fun ShroxyLanguageRow(
             ),
     ) {
         if (selected) {
-            // matchParentSize (not fillMaxHeight): the bar is measured after the Box
-            // resolves its content height, so it spans the row minus the vertical inset.
+            // Absolute overlay pinned flush to the left edge, drawn above the content
+            // (matchParentSize, not fillMaxHeight: the bar is measured after the Box
+            // resolves its content height). It never shifts the row's padding.
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
+                    .padding(vertical = 4.dp)
                     .width(4.dp)
                     .clip(RoundedCornerShape(2.dp))
                     .background(MaterialTheme.colorScheme.primary),
@@ -187,12 +188,8 @@ private fun ShroxyLanguageRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    start = if (selected) 28.dp else 12.dp,
-                    top = 14.dp,
-                    bottom = 14.dp,
-                    end = 12.dp,
-                ),
+                // Content padding is identical in selected and unselected states.
+                .padding(start = 12.dp, top = 14.dp, bottom = 14.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(

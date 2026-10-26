@@ -197,6 +197,7 @@ private fun ShroxyGroupList(
                     trafficUsedBytes = group.usageInfo?.used,
                     trafficTotalBytes = group.usageInfo?.total,
                     expanded = expanded,
+                    hasRows = groupState.rows.isNotEmpty(),
                     menuExpanded = groupMenuExpanded[group.id] == true,
                     onToggleExpand = {
                         onAction(MainAction.ToggleGroupExpanded(group.id, !expanded))
@@ -209,7 +210,7 @@ private fun ShroxyGroupList(
                 )
                 if (expanded) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        groupState.rows.forEach { row ->
+                        groupState.rows.forEachIndexed { index, row ->
                             key(row.guid) {
                                 ShroxyServerRow(
                                     serverGuid = row.guid,
@@ -219,6 +220,8 @@ private fun ShroxyGroupList(
                                     country = row.remarks,
                                     selected = row.guid == uiState.selectedGuid,
                                     onClick = { guid -> onAction(MainAction.SelectServer(guid)) },
+                                    bottomCornerRadius = if (index == groupState.rows.lastIndex) 16.dp else 0.dp,
+                                    delayMillis = row.testDelayMillis.takeIf { it != 0L },
                                 )
                             }
                         }

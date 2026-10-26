@@ -3,6 +3,7 @@ package com.v2ray.ang.ui.compose
 import android.app.Activity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -63,6 +64,13 @@ private val DarkColor = darkColorScheme(
     surfaceContainerHigh = Layer1, // Layer 1
     surfaceContainerHighest = Layer2, // Layer 2
 )
+
+// Shroxy power-button tokens that have no Material color role in the scheme above.
+val ColorScheme.powerRingActiveStart: Color
+    get() = Color(0xFFA9FFE5) // Mint: active gradient start (top-left) and inner circle fill
+
+val ColorScheme.powerRingInactiveEnd: Color
+    get() = Color(0xFF8B9099) // Gray: inactive gradient end (bottom-right) and inactive icon tint
 
 // Semantic Colors
 val colorPing = Color(0xFF009966) // Green

@@ -148,6 +148,11 @@ class MainRepository(
     override fun getSubscriptionItem(id: String): SubscriptionItem? =
         MmkvManager.decodeSubscription(id)
 
+    override fun getClipboardContent(): String = Utils.getClipboard(app)
+
+    override fun removeSubscription(subscriptionId: String) =
+        MmkvManager.removeSubscription(subscriptionId)
+
     override fun getServerGuidList(groupId: String): List<String> =
         if (groupId.isEmpty()) {
             MmkvManager.decodeAllServerList()

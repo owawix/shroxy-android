@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shroxy main screen: power button, test/ping row, top bar -->
+    <string name="connected">Подключено</string>
+    <string name="test">Тест</string>
+    <string name="test_connection">Тест подключения</string>
+    <string name="checking">Проверка...</string>
+    <string name="ping_ms">%1$d мс</string>
+    <string name="collapse_all">Свернуть все</string>
+    <string name="action_settings">Настройки</string>
+    <string name="action_add">Добавить сервер</string>
+    <string name="action_toggle_vpn">Подключить или отключить VPN</string>
+    <string name="empty_subscriptions">У вас пока нет активных подписок.</string>
+    <string name="buy_subscription_prefix">Приобрести подписку на VPN можно</string>
+    <string name="buy_subscription_link">по ссылке</string>
+    <string name="from_clipboard">Из буфера</string>
+    <string name="qr_code">QR-код</string>
+    <string name="shroxy_clipboard_empty">Буфер обмена пуст</string>
+</resources>

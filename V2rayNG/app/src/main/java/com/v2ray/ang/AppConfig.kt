@@ -19,6 +19,9 @@ object AppConfig {
     // Default subscription ID for ungrouped servers
     const val DEFAULT_SUBSCRIPTION_ID = "__default_subscription__"
 
+    /** External purchase link for the Shroxy main-screen empty state (opens the Telegram bot). */
+    const val SHROXY_PURCHASE_URL = "https://t.me/shroomvpn_bot"
+
     /** Preferences mapped to MMKV storage. */
     const val PREF_SNIFFING_ENABLED = "pref_sniffing_enabled"
     const val PREF_ROUTE_ONLY_ENABLED = "pref_route_only_enabled"

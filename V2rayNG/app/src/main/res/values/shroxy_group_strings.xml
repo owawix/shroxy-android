@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shroxy_group_expand">Expand server list</string>
+    <string name="shroxy_group_collapse">Collapse server list</string>
+    <string name="shroxy_group_refresh">Update subscription</string>
+    <string name="shroxy_group_test_all">Test all servers</string>
+    <string name="shroxy_group_more">More actions</string>
+    <string name="shroxy_group_update">Update subscription</string>
+    <string name="shroxy_group_delete">Delete subscription</string>
+    <string name="shroxy_traffic_unlimited">∞</string>
+    <string-array name="shroxy_traffic_units">
+        <item>B</item>
+        <item>KB</item>
+        <item>MB</item>
+        <item>GB</item>
+        <item>TB</item>
+    </string-array>
+    <string name="shroxy_add_from_clipboard">Add from clipboard</string>
+    <string name="shroxy_scan_qr">Scan QR code</string>
+</resources>

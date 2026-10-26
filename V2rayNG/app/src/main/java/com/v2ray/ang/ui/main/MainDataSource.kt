@@ -28,6 +28,12 @@ interface MainDataSource : Closeable {
     fun getSubscriptions(): List<SubscriptionCache>
     fun getSubscriptionItem(id: String): SubscriptionItem?
 
+    /** Current clipboard text; empty string when nothing readable is available. */
+    fun getClipboardContent(): String
+
+    /** Removes a subscription and every server that belongs to it. */
+    fun removeSubscription(subscriptionId: String)
+
     fun getServerGuidList(groupId: String): List<String>
     fun decodeServerConfig(guid: String): ProfileItem?
     fun decodeAffiliationInfo(guid: String): ServerAffiliationInfo?

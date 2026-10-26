@@ -26,7 +26,9 @@ data class MainUiState(
     val locateTarget: LocateTarget? = null,
     val confirmRemove: Boolean = false,
     val doubleColumnDisplay: Boolean = false,
-    val shareQRCodeBitmap: android.graphics.Bitmap? = null
+    val shareQRCodeBitmap: android.graphics.Bitmap? = null,
+    /** IDs of subscription groups whose server list is expanded (empty = all collapsed). */
+    val expandedGroupIds: Set<String> = emptySet()
 )
 
 /**
@@ -37,8 +39,14 @@ sealed interface MainAction {
     data object RefreshGroups : MainAction
     data object ToggleService : MainAction
     data object TestCurrentServer : MainAction
-    data object TestAllServers : MainAction
+    data object TestSelectedServer : MainAction
+    data class TestAllServers(val groupId: String) : MainAction
     data object TestRealAllServers : MainAction
+    data object CollapseAll : MainAction
+    data class ToggleGroupExpanded(val groupId: String, val expanded: Boolean) : MainAction
+    data class RefreshSubscription(val subscriptionGuid: String) : MainAction
+    data class DeleteSubscription(val subscriptionGuid: String) : MainAction
+    data object OpenQr : MainAction
     data object CancelTesting : MainAction
     data object RemoveAllServers : MainAction
     data object RemoveDuplicateServers : MainAction

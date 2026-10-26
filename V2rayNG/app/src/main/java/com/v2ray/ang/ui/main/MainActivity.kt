@@ -9,6 +9,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
@@ -45,6 +49,7 @@ import com.v2ray.ang.ui.server.ServerVlessActivity
 import com.v2ray.ang.ui.server.ServerVmessActivity
 import com.v2ray.ang.ui.server.ServerWireguardActivity
 import com.v2ray.ang.ui.settings.SettingsActivity
+import com.v2ray.ang.ui.shroxy.ShroxyHomeScreen
 import com.v2ray.ang.ui.subscription.SubSettingActivity
 import com.v2ray.ang.ui.userasset.UserAssetActivity
 import com.v2ray.ang.util.LogUtil
@@ -101,14 +106,17 @@ class MainActivity : HelperBaseComponentActivity() {
     @Composable
     override fun ScreenContent() {
         BackHandler { moveTaskToBack(false) }
-        MainScreen(
+        // Iteration 5 (T5.1) adds ShroxySettingsScreen; until then the settings destination
+        // is tracked as internal state and the user stays on the home screen.
+        var showSettings by rememberSaveable { mutableStateOf(false) }
+        ShroxyHomeScreen(
             mainViewModel = mainViewModel,
             onAction = { action ->
                 when (action) {
                     MainAction.ToggleService -> handleFabAction()
                     MainAction.TestCurrentServer -> handleLayoutTestClick()
+                    MainAction.OpenQr,
                     MainAction.ImportQRcode -> importQRcode()
-                    MainAction.ImportClipboard -> importClipboard()
                     MainAction.ImportConfigLocal -> importConfigLocal()
                     is MainAction.ImportManually -> importManually(action.type)
                     MainAction.RestartService -> LauncherManager.restartServiceOrStart(this, ::requestServiceStart)
@@ -121,7 +129,8 @@ class MainActivity : HelperBaseComponentActivity() {
                     else -> mainViewModel.onAction(action)
                 }
             },
-            onNavigate = { route -> navigateTo(route) },
+            onOpenSettings = { showSettings = true },
+            onOpenPurchaseLink = { Utils.openUri(this, AppConfig.SHROXY_PURCHASE_URL) },
         )
     }
 
@@ -227,15 +236,6 @@ class MainActivity : HelperBaseComponentActivity() {
             if (scanResult != null) {
                 mainViewModel.onAction(MainAction.ImportBatchConfig(scanResult))
             }
-        }
-    }
-
-    private fun importClipboard() {
-        try {
-            val text = Utils.getClipboard(this)
-            mainViewModel.onAction(MainAction.ImportBatchConfig(text))
-        } catch (e: Exception) {
-            LogUtil.e(AppConfig.TAG, "Failed to import config from clipboard", e)
         }
     }
 

@@ -1,6 +1,7 @@
 package com.v2ray.ang.ui.main
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -29,11 +30,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -86,6 +90,15 @@ class MainViewModel(
         )
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
+
+    // ---------- Session timer (connected duration, 1s tick) ----------
+    private val _sessionSeconds = MutableStateFlow(0L)
+    val sessionSeconds: StateFlow<Long> = _sessionSeconds.asStateFlow()
+    private var sessionTimerJob: Job? = null
+
+    // ---------- One-shot snackbar messages for the Shroxy screen ----------
+    private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
+    val snackbarEvent: Flow<String> = _snackbarEvent.receiveAsFlow()
 
     // ---------- Keyword filtering ----------
     @Volatile
@@ -277,8 +290,23 @@ class MainViewModel(
         when (action) {
             MainAction.Initialize -> initialize()
             MainAction.RefreshGroups -> setupGroupTab(forceRefresh = true)
-            MainAction.TestAllServers -> testAllRealPing(true)
+            MainAction.TestSelectedServer -> testSelectedServer()
+            is MainAction.TestAllServers -> testAllRealPing(onlyTcp = true, groupId = action.groupId)
             MainAction.TestRealAllServers -> testAllRealPing()
+            MainAction.CollapseAll -> _uiState.update { it.copy(expandedGroupIds = emptySet()) }
+            is MainAction.ToggleGroupExpanded -> _uiState.update {
+                it.copy(
+                    expandedGroupIds = if (action.expanded) {
+                        it.expandedGroupIds + action.groupId
+                    } else {
+                        it.expandedGroupIds - action.groupId
+                    }
+                )
+            }
+
+            is MainAction.RefreshSubscription -> importConfigViaSub(action.subscriptionGuid)
+            is MainAction.DeleteSubscription -> deleteSubscription(action.subscriptionGuid)
+            MainAction.ImportClipboard -> importClipboard()
             MainAction.CancelTesting -> cancelAllPing()
             MainAction.RemoveAllServers -> removeAllServerAsync()
             MainAction.RemoveDuplicateServers -> removeDuplicateServerAsync()
@@ -305,7 +333,7 @@ class MainViewModel(
             MainAction.ToggleService,
             MainAction.TestCurrentServer,
             MainAction.ImportQRcode,
-            MainAction.ImportClipboard,
+            MainAction.OpenQr,
             MainAction.ImportConfigLocal,
             is MainAction.ImportManually,
             MainAction.RestartService,
@@ -462,6 +490,7 @@ class MainViewModel(
                         usageInfo = it.subscription.usageInfo?.let { info ->
                             SubscriptionInfoParser.withWebPageFallback(info, it.subscription.url)
                         },
+                        lastUpdated = it.subscription.lastUpdated,
                     )
                 }
                 val selectedGroup = resolveSelectedGroup(groups)
@@ -475,6 +504,7 @@ class MainViewModel(
                         groups = groups,
                         selectedGroupId = selectedGroup,
                         selectedGuid = dataSource.getSelectServer(),
+                        expandedGroupIds = it.expandedGroupIds.filterTo(HashSet()) { id -> id in validIds },
                     )
                 }
                 groups.forEach { mutableServerGroupState(it.id) }
@@ -537,6 +567,50 @@ class MainViewModel(
                     LogUtil.e(AppConfig.TAG, "Failed to import batch config", e)
                     toastError(R.string.toast_failure)
                 }
+            }
+        }
+    }
+
+    private fun importClipboard() {
+        viewModelScope.launch(ioDispatcher) {
+            val text = dataSource.getClipboardContent()
+            if (text.isBlank()) {
+                LogUtil.e(AppConfig.TAG, "Failed to import from clipboard: clipboard is empty")
+                _snackbarEvent.send(dataSource.getString(R.string.shroxy_clipboard_empty))
+                return@launch
+            }
+            try {
+                val (count, countSub) = dataSource.importBatchConfig(
+                    text, uiState.value.selectedGroupId, true
+                )
+                when {
+                    count > 0 -> {
+                        _snackbarEvent.send(dataSource.getString(R.string.title_import_config_count, count))
+                        setupGroupTab(forceRefresh = true)
+                    }
+
+                    countSub > 0 -> setupGroupTab(forceRefresh = true)
+                    else -> _snackbarEvent.send(dataSource.getString(R.string.toast_failure))
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "Failed to import config from clipboard", e)
+                _snackbarEvent.send(dataSource.getString(R.string.toast_failure))
+            }
+        }
+    }
+
+    private fun deleteSubscription(guid: String) {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                dataSource.removeSubscription(guid)
+                cacheMutex.withLock { groupDataCache.clear() }
+                setupGroupTab(forceRefresh = true)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "Failed to delete subscription: $guid", e)
             }
         }
     }
@@ -835,15 +909,15 @@ class MainViewModel(
         }
     }
 
-    fun testAllRealPing(onlyTcp: Boolean = false) {
+    fun testAllRealPing(onlyTcp: Boolean = false, groupId: String? = null) {
         cancelAllPing()
-        val groupId = uiState.value.selectedGroupId
-        val servers = currentServers()
+        val targetGroupId = groupId ?: uiState.value.selectedGroupId
+        val servers = mutableServerGroupState(targetGroupId).value.servers
         if (servers.isEmpty()) {
             return
         }
         val serverGuids = servers.map { it.guid }
-        mutableServerGroupState(groupId).update { current ->
+        mutableServerGroupState(targetGroupId).update { current ->
             current.copy(
                 servers = current.servers.map { server ->
                     if (server.testDelayMillis == 0L) server
@@ -855,10 +929,10 @@ class MainViewModel(
                 }
             )
         }
-        val request = testRequests.beginBulk(groupId)
+        val request = testRequests.beginBulk(targetGroupId)
         val message = TestServiceMessage(
             key = AppConfig.MSG_MEASURE_CONFIG_START,
-            subscriptionId = groupId,
+            subscriptionId = targetGroupId,
             serverGuids = if (keywordFilter.isNotEmpty()) serverGuids else emptyList(),
             onlyTcp = onlyTcp
         )
@@ -873,8 +947,8 @@ class MainViewModel(
                 dataSource.clearAllTestDelayResults(serverGuids)
                 val resetGuids = serverGuids.toHashSet()
                 cacheMutex.withLock {
-                    groupDataCache[groupId]?.let { cached ->
-                        groupDataCache[groupId] = cached.map { server ->
+                    groupDataCache[targetGroupId]?.let { cached ->
+                        groupDataCache[targetGroupId] = cached.map { server ->
                             if (server.guid !in resetGuids || server.testDelayMillis == 0L) server
                             else server.copy(testDelayMillis = 0L)
                         }
@@ -889,6 +963,11 @@ class MainViewModel(
         testResultFlushJob?.cancel()
         testResultFlushJob = null
         pendingTestResults.clear()
+    }
+
+    private fun testSelectedServer() {
+        if (!uiState.value.isRunning) return
+        testCurrentServerRealPing()
     }
 
     fun testCurrentServerRealPing() {
@@ -931,6 +1010,7 @@ class MainViewModel(
     // ---------- Running state ----------
     private fun updateRunningState(running: Boolean, clearTestingText: Boolean = true) {
         if (!running || clearTestingText) testRequests.invalidateCurrent()
+        if (running) startSessionTimer() else stopSessionTimer()
         _uiState.update { state ->
             state.copy(
                 isRunning = running,
@@ -941,7 +1021,26 @@ class MainViewModel(
         }
     }
 
+    // ---------- Session timer ----------
+    private fun startSessionTimer() {
+        if (sessionTimerJob != null) return
+        val startRealtime = SystemClock.elapsedRealtime()
+        sessionTimerJob = viewModelScope.launch {
+            while (true) {
+                _sessionSeconds.value = (SystemClock.elapsedRealtime() - startRealtime) / 1000
+                delay(SESSION_TICK_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun stopSessionTimer() {
+        sessionTimerJob?.cancel()
+        sessionTimerJob = null
+        _sessionSeconds.value = 0L
+    }
+
     override fun onCleared() {
+        sessionTimerJob?.cancel()
         setupGroupJob?.cancel()
         preloadJob?.cancel()
         selectedGroupLoadJob?.cancel()
@@ -965,5 +1064,6 @@ class MainViewModel(
 
     private companion object {
         const val TEST_RESULT_FLUSH_INTERVAL_MS = 500L
+        const val SESSION_TICK_INTERVAL_MS = 1000L
     }
 }

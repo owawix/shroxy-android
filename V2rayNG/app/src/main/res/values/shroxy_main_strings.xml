@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shroxy main screen: power button, test/ping row, top bar -->
+    <string name="connected">Connected</string>
+    <string name="test">Test</string>
+    <string name="test_connection">Connection test</string>
+    <string name="checking">Checking...</string>
+    <string name="ping_ms">%1$d ms</string>
+    <string name="collapse_all">Collapse all</string>
+    <string name="action_settings">Settings</string>
+    <string name="action_add">Add server</string>
+    <string name="action_toggle_vpn">Connect or disconnect VPN</string>
+    <string name="empty_subscriptions">You have no active subscriptions yet.</string>
+    <string name="buy_subscription_prefix">You can buy a VPN subscription</string>
+    <string name="buy_subscription_link">via this link</string>
+    <string name="from_clipboard">From clipboard</string>
+    <string name="qr_code">QR code</string>
+    <string name="shroxy_clipboard_empty">Clipboard is empty</string>
+</resources>

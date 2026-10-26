@@ -177,7 +177,7 @@ fun MainScreen(
                             MainMoreMenuAction.ExportAll -> onAction(MainAction.ExportAll)
                             MainMoreMenuAction.LocateSelected -> onAction(MainAction.LocateSelectedServer)
                             MainMoreMenuAction.SortByTestResults -> onAction(MainAction.SortByTestResults)
-                            MainMoreMenuAction.TestAll -> onAction(MainAction.TestAllServers)
+                            MainMoreMenuAction.TestAll -> onAction(MainAction.TestAllServers(uiState.selectedGroupId))
                             MainMoreMenuAction.TestAllRealPing -> onAction(MainAction.TestRealAllServers)
                             MainMoreMenuAction.UpdateSubscriptions -> onAction(MainAction.UpdateSubscriptions)
                         }

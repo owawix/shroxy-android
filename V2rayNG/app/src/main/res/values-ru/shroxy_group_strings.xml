@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shroxy_group_expand">Развернуть список серверов</string>
+    <string name="shroxy_group_collapse">Свернуть список серверов</string>
+    <string name="shroxy_group_refresh">Обновить подписку</string>
+    <string name="shroxy_group_test_all">Протестировать все серверы</string>
+    <string name="shroxy_group_more">Другие действия</string>
+    <string name="shroxy_group_update">Обновить подписку</string>
+    <string name="shroxy_group_delete">Удалить подписку</string>
+    <string name="shroxy_traffic_unlimited">∞</string>
+    <string-array name="shroxy_traffic_units">
+        <item>Б</item>
+        <item>КБ</item>
+        <item>МБ</item>
+        <item>ГБ</item>
+        <item>ТВ</item>
+    </string-array>
+    <string name="shroxy_add_from_clipboard">Добавить из буфера обмена</string>
+    <string name="shroxy_scan_qr">Сканировать QR-код</string>
+</resources>

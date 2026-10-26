@@ -138,18 +138,42 @@ fun ShroxyHomeScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Box(modifier = Modifier.weight(1f)) {
                 if (showEmptyState(groups.size)) {
-                    ShroxyEmptyState(onOpenPurchaseLink = onOpenPurchaseLink)
+                    ShroxyEmptyContentZone(
+                        onOpenPurchaseLink = onOpenPurchaseLink,
+                        onAction = onAction,
+                    )
                 } else {
                     ShroxyGroupList(
                         mainViewModel = mainViewModel,
                         uiState = uiState,
                         groupMenuExpanded = groupMenuExpanded,
                         onAction = onAction,
-                    )
+                    ) {
+                        ShroxyBottomPills(onAction = onAction)
+                    }
                 }
             }
-            ShroxyBottomPills(onAction = onAction)
         }
+    }
+}
+
+/**
+ * Empty state with the import pill buttons below the centered empty text, so they are
+ * visible immediately instead of being pinned to the screen bottom. A plain Column is
+ * used because the content zone is already height-bounded by weight(1f) on the screen
+ * Column; a lazy item would measure children with unbounded height and collapse the
+ * weighted box to zero.
+ */
+@Composable
+private fun ShroxyEmptyContentZone(
+    onOpenPurchaseLink: () -> Unit,
+    onAction: (MainAction) -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f)) {
+            ShroxyEmptyState(onOpenPurchaseLink = onOpenPurchaseLink)
+        }
+        ShroxyBottomPills(onAction = onAction)
     }
 }
 
@@ -159,6 +183,7 @@ private fun ShroxyGroupList(
     uiState: MainUiState,
     groupMenuExpanded: MutableMap<String, Boolean>,
     onAction: (MainAction) -> Unit,
+    footer: @Composable () -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(items = uiState.groups, key = { it.id }) { group ->
@@ -200,6 +225,9 @@ private fun ShroxyGroupList(
                     }
                 }
             }
+        }
+        item(key = "bottom_pills") {
+            footer()
         }
     }
 }
@@ -322,10 +350,7 @@ private fun ShroxyHomeScreenEmptyPreview() {
                     onCollapseAllClick = {},
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                Box(modifier = Modifier.weight(1f)) {
-                    ShroxyEmptyState(onOpenPurchaseLink = {})
-                }
-                ShroxyBottomPills(onAction = {})
+                ShroxyEmptyContentZone(onOpenPurchaseLink = {}, onAction = {})
             }
         }
     }

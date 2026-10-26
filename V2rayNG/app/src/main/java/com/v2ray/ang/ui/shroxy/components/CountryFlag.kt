@@ -107,6 +107,26 @@ object CountryFlags {
         val code = nameToCode[key] ?: return null
         return codeToRes[code]
     }
+
+    /**
+     * Splits a leading regional-indicator emoji pair off a location title.
+     * [emoji] is the flag to render as the icon (null when the title does not lead with a
+     * valid pair — the caller then falls back to name/code resolution and keeps the
+     * original text); [cleanTitle] is the title without the emoji for display.
+     */
+    data class LeadingFlag(val emoji: String?, val cleanTitle: String)
+
+    /**
+     * Strips a leading emoji flag (and the whitespace separating it from the name) from
+     * [title]. When the title carries no valid emoji pair, or consists of nothing but the
+     * emoji, the text is returned unchanged with a null emoji so nothing is lost.
+     */
+    fun stripLeadingFlag(title: String): LeadingFlag {
+        val emoji = extractEmojiFlag(title) ?: return LeadingFlag(null, title)
+        val cleanTitle = title.substring(emoji.length).trimStart()
+        if (cleanTitle.isEmpty()) return LeadingFlag(null, title)
+        return LeadingFlag(emoji, cleanTitle)
+    }
 }
 
 /**

@@ -89,14 +89,20 @@ fun ShroxyTestPingRow(
         }
         Spacer(modifier = Modifier.weight(1f))
         if (hasSubscriptions) {
-            Text(
-                text = stringResource(R.string.collapse_all),
+            // Text draws its glyphs at the top of any extra height, so center it
+            // in the 48dp touch target to align with the leading row's content.
+            Box(
                 modifier = Modifier
                     .heightIn(min = 48.dp)
                     .clickable(role = Role.Button, onClick = onCollapseAllClick),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-            )
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = stringResource(R.string.collapse_all),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
         }
     }
 }

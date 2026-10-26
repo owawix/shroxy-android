@@ -15,10 +15,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -42,11 +42,14 @@ fun ShroxyServerRow(
     onClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // A leading emoji flag is rendered once — as the flag icon — not duplicated in the title.
+    val leading = remember(title) { CountryFlags.stripLeadingFlag(title) }
     Box(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 56.dp)
-            .background(if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+            // Layer 1; sits flush on the expanded group card (surfaceContainer, also Layer 1).
+            .background(if (selected) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceContainer)
             .selectable(
                 selected = selected,
                 onClick = { onClick(serverGuid) },
@@ -76,14 +79,14 @@ fun ShroxyServerRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             CountryFlag(
-                remark = remark,
+                remark = leading.emoji ?: remark,
                 country = country,
                 modifier = Modifier.size(width = 28.dp, height = 20.dp),
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
+                    text = leading.cleanTitle,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,

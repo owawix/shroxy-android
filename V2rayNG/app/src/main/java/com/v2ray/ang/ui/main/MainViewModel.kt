@@ -72,6 +72,19 @@ private fun applyTestDelayResultsToRows(
     }
 }
 
+/**
+ * Subscriptions rendered as group cards. The pseudo "All" group (blank GUID) and real
+ * subscriptions are kept only while they contain at least one server, so an empty
+ * default container, a failed import, or an empty "All" group never renders a blank
+ * group card and the screen-level empty state shows instead. Filtering is GUID-based;
+ * deletion and selection operate on the same GUIDs.
+ */
+internal fun visibleGroupSubscriptions(
+    subscriptions: List<SubscriptionCache>,
+    hasServers: (String) -> Boolean,
+): List<SubscriptionCache> =
+    subscriptions.filter { hasServers(it.guid) }
+
 class MainViewModel(
     application: Application,
     private val dataSource: MainDataSource
@@ -486,7 +499,9 @@ class MainViewModel(
                 if (forceRefresh) {
                     cacheMutex.withLock { groupDataCache.clear() }
                 }
-                val groups = dataSource.getSubscriptions().map {
+                val groups = visibleGroupSubscriptions(dataSource.getSubscriptions()) { guid ->
+                    dataSource.getServerGuidList(guid).isNotEmpty()
+                }.map {
                     GroupMapItem(
                         id = it.guid,
                         remarks = it.subscription.remarks,

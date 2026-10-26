@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -174,12 +173,13 @@ private fun ShroxyLanguageRow(
             ),
     ) {
         if (selected) {
+            // matchParentSize (not fillMaxHeight): the bar is measured after the Box
+            // resolves its content height, so it spans the row minus the vertical inset.
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
+                    .matchParentSize()
                     .padding(start = 12.dp, top = 8.dp, bottom = 8.dp)
                     .width(4.dp)
-                    .fillMaxHeight()
                     .clip(RoundedCornerShape(2.dp))
                     .background(MaterialTheme.colorScheme.primary),
             )

@@ -32,6 +32,8 @@ import java.net.URI
 
 object AngConfigManager {
 
+    private const val IMPORT_SUB_FALLBACK_NAME = "import sub"
+
     private data class ParsedProfile(
         val profile: ProfileItem,
         val rawConfig: String? = null,
@@ -543,6 +545,12 @@ object AngConfigManager {
                 it.subscription.lastUpdated = System.currentTimeMillis()
                 // Replaced on every successful update so the box disappears if the panel stops sending the headers.
                 it.subscription.usageInfo = usageInfo
+                // The panel's Profile-Title is the subscription's real name; adopt it only
+                // while the remarks still hold the import-time generated name.
+                val profileTitle = usageInfo?.title
+                if (!profileTitle.isNullOrBlank() && hasAutoImportName(it.subscription)) {
+                    it.subscription.remarks = profileTitle
+                }
                 MmkvManager.encodeSubscription(it.guid, it.subscription)
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
                 return SubscriptionUpdateResult(
@@ -628,10 +636,35 @@ object AngConfigManager {
         }
         val uri = URI(Utils.fixIllegalUrl(url))
         val subItem = SubscriptionItem()
-        subItem.remarks = uri.fragment ?: "import sub"
+        subItem.remarks = subscriptionImportName(uri)
         subItem.url = url
         MmkvManager.encodeSubscription("", subItem)
         return 1
+    }
+
+    /**
+     * Name assigned to a subscription at import time: the `#remarks` fragment when the URL
+     * carries one, otherwise the URL host, otherwise a generic fallback. The fallback value
+     * matches [hasAutoImportName], so the panel's `Profile-Title` can replace it after the
+     * first update without overwriting a user-chosen name.
+     */
+    internal fun subscriptionImportName(uri: URI): String =
+        uri.fragment?.takeIf { it.isNotBlank() }
+            ?: uri.host?.takeIf { it.isNotBlank() }
+            ?: IMPORT_SUB_FALLBACK_NAME
+
+    /**
+     * True when the subscription remarks still hold the import-time generated name and can
+     * be replaced by the panel's `Profile-Title` after an update. Subscriptions imported
+     * before named imports existed keep the legacy literal "import sub", which never
+     * matches the recomputed name, so it is treated as an auto-generated name too.
+     */
+    internal fun hasAutoImportName(subscription: SubscriptionItem): Boolean {
+        if (subscription.remarks.isBlank()) return true
+        if (subscription.remarks == IMPORT_SUB_FALLBACK_NAME) return true
+        val uri = runCatching { URI(Utils.fixIllegalUrl(subscription.url)) }.getOrNull()
+            ?: return false
+        return subscription.remarks == subscriptionImportName(uri)
     }
 
     /** Generates a description for the profile.

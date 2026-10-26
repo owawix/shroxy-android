@@ -1,5 +1,6 @@
 package com.v2ray.ang.ui.shroxy.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -200,6 +201,9 @@ private fun InfoStrip(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            // Layer 2 strip flush with the card's bottom edge: no shape, so its corners are
+            // square and the card's 16dp radius clips them.
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

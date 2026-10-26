@@ -45,4 +45,43 @@ class CountryFlagTest {
         assertNull(CountryFlags.resolveFlagRes(null))
         assertNull(CountryFlags.resolveFlagRes(""))
     }
+
+    @Test
+    fun stripLeadingFlagRemovesEmojiAndSeparatorFromTitle() {
+        val result = CountryFlags.stripLeadingFlag("🇳🇱 Нидерланды • Hysteria")
+        assertEquals("🇳🇱", result.emoji)
+        assertEquals("Нидерланды • Hysteria", result.cleanTitle)
+    }
+
+    @Test
+    fun stripLeadingFlagHandlesSingleSpaceSeparator() {
+        val result = CountryFlags.stripLeadingFlag("🇸🇪 Sweden")
+        assertEquals("🇸🇪", result.emoji)
+        assertEquals("Sweden", result.cleanTitle)
+    }
+
+    @Test
+    fun stripLeadingFlagWithoutEmojiKeepsTitleUnchanged() {
+        val result = CountryFlags.stripLeadingFlag("Швеция")
+        assertNull(result.emoji)
+        assertEquals("Швеция", result.cleanTitle)
+    }
+
+    @Test
+    fun stripLeadingFlagWithInvalidPairKeepsTitleUnchanged() {
+        // A single regional indicator (not a pair) and an unrelated emoji must not strip.
+        val single = CountryFlags.stripLeadingFlag("🇺 Sweden")
+        assertNull(single.emoji)
+        assertEquals("🇺 Sweden", single.cleanTitle)
+        val unrelated = CountryFlags.stripLeadingFlag("⚡ Fast server")
+        assertNull(unrelated.emoji)
+        assertEquals("⚡ Fast server", unrelated.cleanTitle)
+    }
+
+    @Test
+    fun stripLeadingFlagWithOnlyEmojiKeepsTitleUnchanged() {
+        val result = CountryFlags.stripLeadingFlag("🇺🇸")
+        assertNull(result.emoji)
+        assertEquals("🇺🇸", result.cleanTitle)
+    }
 }

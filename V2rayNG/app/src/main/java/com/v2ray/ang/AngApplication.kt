@@ -45,6 +45,11 @@ class AngApplication : Application() {
         // Ensure critical preference defaults are present in MMKV early
         SettingsManager.initApp(this)
 
+        // Copy bundled geo assets to the user asset dir on every start path (UI, BootReceiver, QS-tile);
+        // only-if-absent inside initAssets keeps later runs cheap and never overwrites updated files.
+        // Failures are caught and logged inside initAssets, so startup cannot crash.
+        SettingsManager.initAssets(this, assets)
+
         // Initialize theme state from MMKV
         ThemeManager.refresh()
     }

@@ -9,7 +9,9 @@ import com.v2ray.ang.AppConfig.ANG_PACKAGE
 import com.v2ray.ang.AppConfig.DEFAULT_SUBSCRIPTION_ID
 import com.v2ray.ang.AppConfig.GEOIP_PRIVATE
 import com.v2ray.ang.AppConfig.GEOSITE_PRIVATE
+import com.v2ray.ang.AppConfig.TAG_BLOCKED
 import com.v2ray.ang.AppConfig.TAG_DIRECT
+import com.v2ray.ang.AppConfig.TAG_PROXY
 import com.v2ray.ang.AppConfig.VPN
 import com.v2ray.ang.dto.V2rayConfig
 import com.v2ray.ang.dto.entities.ProfileItem
@@ -31,6 +33,28 @@ import com.v2ray.ang.util.Utils
 import java.io.File
 import java.io.FileOutputStream
 import kotlin.random.Random
+
+/**
+ * Source of the effective routing rulesets.
+ */
+enum class EffectiveRoutingSource {
+    SHROXY_BYPASS,
+    SHROXY_GLOBAL,
+}
+
+/**
+ * Effective routing rulesets for the current Shroxy routing mode.
+ *
+ * The legacy MMKV ruleset list ([MmkvManager.decodeRoutingRulesets]) is only used by the
+ * hidden routing settings screen; the core config always consumes these effective rulesets.
+ *
+ * @property rulesets The rulesets for the current mode.
+ * @property source The mode the rulesets were built for.
+ */
+data class EffectiveRoutingRulesets(
+    val rulesets: List<RulesetItem>,
+    val source: EffectiveRoutingSource,
+)
 
 object SettingsManager {
 
@@ -172,6 +196,100 @@ object SettingsManager {
     }
 
     /**
+     * Check if Shroxy bypass-RU routing mode is enabled.
+     * @return True when RU resources go direct, false for the global proxy mode.
+     */
+    fun isShroxyBypassRu(): Boolean {
+        return MmkvManager.decodeSettingsBool(AppConfig.PREF_SHROXY_BYPASS_RU, false)
+    }
+
+    /**
+     * Enable or disable Shroxy bypass-RU routing mode.
+     * @param enabled True to route RU resources direct, false for the global proxy mode.
+     */
+    fun setShroxyBypassRu(enabled: Boolean) {
+        MmkvManager.encodeSettings(AppConfig.PREF_SHROXY_BYPASS_RU, enabled)
+    }
+
+    /**
+     * Get the effective routing rulesets for the current Shroxy routing mode.
+     * The rulesets mirror the preset assets custom_routing_white_russia (bypass) and
+     * custom_routing_global (global); the legacy MMKV ruleset list is not used here.
+     * @param context The application context.
+     * @return The effective rulesets and their source mode.
+     */
+    fun getEffectiveRoutingRulesets(context: Context): EffectiveRoutingRulesets {
+        return getEffectiveRoutingRulesetsInternal()
+    }
+
+    /**
+     * Build the bypass-RU rulesets (mirror of assets/custom_routing_white_russia
+     * without the bittorrent entry): block udp443, LAN direct, RU domains/IP direct.
+     * @return The ruleset list.
+     */
+    private fun shroxyBypassRuRulesets(): List<RulesetItem> {
+        return listOf(
+            RulesetItem(
+                remarks = "Block udp443",
+                outboundTag = TAG_BLOCKED,
+                port = "443",
+                network = "udp",
+            ),
+            RulesetItem(
+                remarks = "Direct LAN IP",
+                outboundTag = TAG_DIRECT,
+                ip = listOf(GEOIP_PRIVATE),
+            ),
+            RulesetItem(
+                remarks = "Direct LAN domains",
+                outboundTag = TAG_DIRECT,
+                domain = listOf(GEOSITE_PRIVATE),
+            ),
+            RulesetItem(
+                remarks = "Bypass Russia domains",
+                outboundTag = TAG_DIRECT,
+                domain = listOf("geosite:category-ru"),
+            ),
+            RulesetItem(
+                remarks = "Bypass Russia IP",
+                outboundTag = TAG_DIRECT,
+                ip = listOf("geoip:ru"),
+            ),
+        )
+    }
+
+    /**
+     * Build the global rulesets (mirror of assets/custom_routing_global):
+     * block udp443, LAN direct, everything else to proxy.
+     * @return The ruleset list.
+     */
+    private fun shroxyGlobalRulesets(): List<RulesetItem> {
+        return listOf(
+            RulesetItem(
+                remarks = "Block udp443",
+                outboundTag = TAG_BLOCKED,
+                port = "443",
+                network = "udp",
+            ),
+            RulesetItem(
+                remarks = "Direct LAN IP",
+                outboundTag = TAG_DIRECT,
+                ip = listOf(GEOIP_PRIVATE),
+            ),
+            RulesetItem(
+                remarks = "Direct LAN domains",
+                outboundTag = TAG_DIRECT,
+                domain = listOf(GEOSITE_PRIVATE),
+            ),
+            RulesetItem(
+                remarks = "Final proxy",
+                outboundTag = TAG_PROXY,
+                port = "0-65535",
+            ),
+        )
+    }
+
+    /**
      * Check if routing rulesets bypass LAN.
      * @return True if bypassing LAN, false otherwise.
      */
@@ -194,11 +312,24 @@ object SettingsManager {
             return exist == true
         }
 
-        val rulesetItems = MmkvManager.decodeRoutingRulesets()
-        val exist = rulesetItems?.filter { it.enabled && it.outboundTag == TAG_DIRECT }?.any {
+        val rulesetItems = getEffectiveRoutingRulesetsInternal().rulesets
+        val exist = rulesetItems.filter { it.enabled && it.outboundTag == TAG_DIRECT }.any {
             it.domain?.contains(GEOSITE_PRIVATE) == true || it.ip?.contains(GEOIP_PRIVATE) == true
         }
-        return exist == true
+        return exist
+    }
+
+    /**
+     * Resolve the effective routing rulesets without a context, for consumers
+     * that run before any context is available.
+     * @return The effective rulesets and their source mode.
+     */
+    private fun getEffectiveRoutingRulesetsInternal(): EffectiveRoutingRulesets {
+        return if (isShroxyBypassRu()) {
+            EffectiveRoutingRulesets(shroxyBypassRuRulesets(), EffectiveRoutingSource.SHROXY_BYPASS)
+        } else {
+            EffectiveRoutingRulesets(shroxyGlobalRulesets(), EffectiveRoutingSource.SHROXY_GLOBAL)
+        }
     }
 
     /**

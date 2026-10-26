@@ -14,6 +14,7 @@ import com.v2ray.ang.enums.BalancerStrategyType
 import com.v2ray.ang.enums.CoreResolvedType
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.isNotNullEmpty
+import com.v2ray.ang.handler.EffectiveRoutingSource
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.util.HttpUtil
@@ -1170,13 +1171,53 @@ object CoreConfigManager {
         policyGroupBalancerTags: Map<String, String>
     ) {
 
-        v2rayConfig.routing.domainStrategy =
-            MmkvManager.decodeSettingsString(AppConfig.PREF_ROUTING_DOMAIN_STRATEGY)
-                ?: "AsIs"
+        val effectiveRouting = SettingsManager.getEffectiveRoutingRulesets(configContext.context)
 
-        val rulesetItems = MmkvManager.decodeRoutingRulesets()
-        rulesetItems?.forEach { key ->
-            appendRoutingUserRule(configContext, key, v2rayConfig, policyGroupBalancerTags)
+        v2rayConfig.routing.domainStrategy = routingDomainStrategy(effectiveRouting.source)
+
+        effectiveRouting.rulesets.forEach { key ->
+            appendRoutingUserRule(configContext, key, v2rayConfig, policyGroupBalancerTags, effectiveRouting.source)
+        }
+    }
+
+    /**
+     * Resolve the routing domainStrategy for one routing source.
+     * Shroxy modes force their strategy (bypass needs IPIfNonMatch so geoip:ru matches
+     * resolved domains); a null source keeps the legacy behavior of reading the pref.
+     */
+    internal fun routingDomainStrategy(source: EffectiveRoutingSource?): String {
+        return when (source) {
+            EffectiveRoutingSource.SHROXY_BYPASS -> "IPIfNonMatch"
+            EffectiveRoutingSource.SHROXY_GLOBAL -> "AsIs"
+            null -> MmkvManager.decodeSettingsString(AppConfig.PREF_ROUTING_DOMAIN_STRATEGY) ?: "AsIs"
+        }
+    }
+
+    /**
+     * Convert one ruleset item into a routing rule, applying the source-dependent
+     * geoip mapping.
+     */
+    internal fun buildRoutingRule(item: RulesetItem, source: EffectiveRoutingSource?): V2rayConfig.RoutingBean.RulesBean? {
+        val rule = JsonUtil.fromJson(JsonUtil.toJson(item), V2rayConfig.RoutingBean.RulesBean::class.java) ?: return null
+
+        rule.ip?.let { ipList ->
+            rule.ip = ipList.map { mapRoutingIpEntry(it, source) }
+        }
+
+        return rule
+    }
+
+    /**
+     * Map one routing ip entry for the config. The ext:geoip-only-cn-private.dat rewrite
+     * applies only to the legacy PREF_ROUTING_RULESET source; Shroxy rulesets reference
+     * geoip:private / geoip:ru against the full bundled geoip.dat and must pass through.
+     */
+    internal fun mapRoutingIpEntry(ip: String, source: EffectiveRoutingSource?): String {
+        if (source != null) return ip
+        return when (ip) {
+            AppConfig.GEOIP_CN -> "ext:${AppConfig.GEOIP_ONLY_CN_PRIVATE_DAT}:cn"
+            AppConfig.GEOIP_PRIVATE -> "ext:${AppConfig.GEOIP_ONLY_CN_PRIVATE_DAT}:private"
+            else -> ip
         }
     }
 
@@ -1187,27 +1228,15 @@ object CoreConfigManager {
         configContext: CoreConfigContext,
         item: RulesetItem?,
         v2rayConfig: V2rayConfig,
-        policyGroupBalancerTags: Map<String, String>
+        policyGroupBalancerTags: Map<String, String>,
+        source: EffectiveRoutingSource?,
     ) {
         val context = configContext.context
         if (item == null || !item.enabled) {
             return
         }
 
-        val rule = JsonUtil.fromJson(JsonUtil.toJson(item), V2rayConfig.RoutingBean.RulesBean::class.java) ?: return
-
-        // Replace specific geoip rules with ext versions
-        rule.ip?.let { ipList ->
-            val updatedIpList = ArrayList<String>()
-            ipList.forEach { ip ->
-                when (ip) {
-                    AppConfig.GEOIP_CN -> updatedIpList.add("ext:${AppConfig.GEOIP_ONLY_CN_PRIVATE_DAT}:cn")
-                    AppConfig.GEOIP_PRIVATE -> updatedIpList.add("ext:${AppConfig.GEOIP_ONLY_CN_PRIVATE_DAT}:private")
-                    else -> updatedIpList.add(ip)
-                }
-            }
-            rule.ip = updatedIpList
-        }
+        val rule = buildRoutingRule(item, source) ?: return
 
         if (SettingsManager.canUseProcessRouting()) {
             // Convert process package names to UIDs

@@ -43,10 +43,10 @@ object CoreConfigContextBuilder {
         }
 
         // Step 2: Resolve all non-builtin routing outbound tags.
-        val routingResolvedOutbounds = resolveRoutingOutbounds()
+        val routingResolvedOutbounds = resolveRoutingOutbounds(context)
         val resolvedOutbounds = listOf(primaryResolvedOutbound) + routingResolvedOutbounds
         val fallbackResolvedOutbounds = resolveFallbackOutbounds(resolvedOutbounds)
-        val routingDomainRules = collectRoutingDomainRulesForDns()
+        val routingDomainRules = collectRoutingDomainRulesForDns(context)
 
         return CoreConfigContext(
             context = context,
@@ -98,8 +98,8 @@ object CoreConfigContextBuilder {
      *
      * Invalid or empty targets are skipped and handled by fallback logic later.
      */
-    private fun resolveRoutingOutbounds(): List<CoreConfigContext.ResolvedOutbound> {
-        val rulesetItems = MmkvManager.decodeRoutingRulesets() ?: return emptyList()
+    private fun resolveRoutingOutbounds(context: Context): List<CoreConfigContext.ResolvedOutbound> {
+        val rulesetItems = SettingsManager.getEffectiveRoutingRulesets(context).rulesets
         val resolvedOutbounds = mutableListOf<CoreConfigContext.ResolvedOutbound>()
         val processedTags = mutableSetOf<String>()
 
@@ -225,8 +225,8 @@ object CoreConfigContextBuilder {
      *
      * outbounds are normalized into three tags only: proxy / direct / block.
      */
-    private fun collectRoutingDomainRulesForDns(): List<CoreConfigContext.RoutingDomainRule> {
-        val rulesetItems = MmkvManager.decodeRoutingRulesets() ?: return emptyList()
+    private fun collectRoutingDomainRulesForDns(context: Context): List<CoreConfigContext.RoutingDomainRule> {
+        val rulesetItems = SettingsManager.getEffectiveRoutingRulesets(context).rulesets
         val result = mutableListOf<CoreConfigContext.RoutingDomainRule>()
 
         rulesetItems

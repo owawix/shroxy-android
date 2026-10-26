@@ -1,5 +1,6 @@
 # Ignore data and key store files
 *.dat
+!V2rayNG/app/src/main/assets/*.dat
 *.jks
 
 # Ignore output JSON file

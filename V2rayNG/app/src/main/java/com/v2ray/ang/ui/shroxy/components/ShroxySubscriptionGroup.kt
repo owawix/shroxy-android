@@ -1,12 +1,14 @@
 package com.v2ray.ang.ui.shroxy.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,6 +35,9 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -236,11 +241,28 @@ private fun InfoStrip(
             modifier = Modifier.weight(1f),
         )
         if (isSubscriptionUrlVisible(subscriptionUrl)) {
-            // 48dp IconButton touch target keeps the visual 18dp icon (iteration-8 lesson).
-            IconButton(onClick = onOpenSubscriptionUrl) {
+            // Iteration-10 QA: keep the pre-iteration-9 slim strip. IconButton enforces a
+            // 48dp minimum interactive size, which inflated the row; a plain clickable on a
+            // 48dp-wide Box wraps the 18dp icon so the height stays bounded by the strip
+            // row (icon + strip padding drive the height) while touch, keyboard, and
+            // accessibility activation all work through the standard clickable path.
+            val openSubscriptionUrlLabel = stringResource(R.string.shroxy_group_open_subscription_url)
+            Box(
+                modifier = Modifier
+                    .width(48.dp)
+                    .clickable(
+                        role = Role.Button,
+                        onClickLabel = openSubscriptionUrlLabel,
+                        onClick = onOpenSubscriptionUrl,
+                    )
+                    .semantics(mergeDescendants = true) {
+                        contentDescription = openSubscriptionUrlLabel
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
                     imageVector = Icons.Outlined.Language,
-                    contentDescription = stringResource(R.string.shroxy_group_open_subscription_url),
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp),
                 )

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -19,7 +18,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -49,6 +51,7 @@ fun ShroxyServerRow(
 ) {
     // A leading emoji flag is rendered once — as the flag icon — not duplicated in the title.
     val leading = remember(title) { CountryFlags.stripLeadingFlag(title) }
+    val accent = MaterialTheme.colorScheme.primary
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -65,33 +68,38 @@ fun ShroxyServerRow(
                     bottomEnd = bottomCornerRadius,
                 ),
             )
+            // Selected rows get a 4dp "border-left" accent drawn behind the content but
+            // above the layer2 background. drawBehind paints only — it never participates
+            // in measurement, so the strip cannot stretch the row or shift the padding.
+            .then(
+                if (selected) {
+                    Modifier.drawBehind {
+                        val w = 4.dp.toPx()
+                        val h = size.height - 8.dp.toPx()
+                        if (h > 0f) {
+                            drawRoundRect(
+                                color = accent,
+                                topLeft = Offset(0f, (size.height - h) / 2f),
+                                size = Size(w, h),
+                                cornerRadius = CornerRadius(2.dp.toPx()),
+                            )
+                        }
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .selectable(
                 selected = selected,
                 onClick = { onClick(serverGuid) },
                 role = Role.Button,
             ),
     ) {
-        if (selected) {
-            // Thin accent strip pinned flush to the left edge, drawn above the background
-            // but below the content: it never shifts the row's padding or the flag.
-            // Note: matchParentSize() forces min=max constraints equal to the whole Box,
-            // so it must NOT be used here — the trailing width(4.dp) would be overridden
-            // and fill the row.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-                    .padding(vertical = 4.dp)
-                    .width(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 // Content padding is identical in selected and unselected states; the
-                // accent bar below is an absolute overlay that never participates in layout.
+                // accent strip is drawn, never laid out.
                 .padding(start = 12.dp, top = 10.dp, bottom = 10.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

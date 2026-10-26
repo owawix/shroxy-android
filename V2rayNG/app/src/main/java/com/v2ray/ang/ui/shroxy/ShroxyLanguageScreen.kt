@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,6 +30,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -160,6 +163,7 @@ private fun ShroxyLanguageRow(
     selected: Boolean,
     onClick: (String) -> Unit,
 ) {
+    val accent = MaterialTheme.colorScheme.primary
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -167,32 +171,38 @@ private fun ShroxyLanguageRow(
             .background(
                 if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
             )
+            // Selected rows get a 4dp "border-left" accent drawn behind the content but
+            // above the layer2 background. drawBehind paints only — it never participates
+            // in measurement, so the strip cannot stretch the row or shift the padding.
+            .then(
+                if (selected) {
+                    Modifier.drawBehind {
+                        val w = 4.dp.toPx()
+                        val h = size.height - 8.dp.toPx()
+                        if (h > 0f) {
+                            drawRoundRect(
+                                color = accent,
+                                topLeft = Offset(0f, (size.height - h) / 2f),
+                                size = Size(w, h),
+                                cornerRadius = CornerRadius(2.dp.toPx()),
+                            )
+                        }
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .selectable(
                 selected = selected,
                 onClick = { onClick(languageCode) },
                 role = Role.Button,
             ),
     ) {
-        if (selected) {
-            // Thin accent strip pinned flush to the left edge, drawn above the background
-            // but below the content:
-            // it never shifts the row's padding. Note: matchParentSize() forces
-            // min=max constraints equal to the whole Box, so it must NOT be used here —
-            // the trailing width(4.dp) would be overridden and fill the row.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .fillMaxHeight()
-                    .padding(vertical = 4.dp)
-                    .width(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-            )
-        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                // Content padding is identical in selected and unselected states.
+                // Content padding is identical in selected and unselected states; the
+                // accent strip is drawn, never laid out.
                 .padding(start = 12.dp, top = 14.dp, bottom = 14.dp, end = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

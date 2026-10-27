@@ -26,7 +26,6 @@ data class MainUiState(
     val locateTarget: LocateTarget? = null,
     val confirmRemove: Boolean = false,
     val doubleColumnDisplay: Boolean = false,
-    val shareQRCodeBitmap: android.graphics.Bitmap? = null,
     /** IDs of subscription groups whose server list is expanded (empty = all collapsed). */
     val expandedGroupIds: Set<String> = emptySet(),
     /** Shroxy bypass-RU routing mode (PREF_SHROXY_BYPASS_RU); false = global proxy mode. */
@@ -70,10 +69,8 @@ sealed interface MainAction {
     data class RemoveServer(val guid: String) : MainAction
     data class EditServer(val guid: String, val profile: com.v2ray.ang.dto.entities.ProfileItem) : MainAction
     data class Search(val query: String) : MainAction
-    data class ShareQRCode(val guid: String) : MainAction
     data class ShareClipboard(val guid: String) : MainAction
     data class ShareFullContent(val guid: String) : MainAction
-    data object DismissQRCodeDialog : MainAction
     data class OpenSubscriptionLink(val url: String) : MainAction
 
     data class ImportBatchConfig(val configText: String) : MainAction

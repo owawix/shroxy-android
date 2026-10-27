@@ -17,15 +17,12 @@ import com.v2ray.ang.AppConfig.PREF_IS_BOOTED
 import com.v2ray.ang.AppConfig.PREF_ROUTING_RULESET
 import com.v2ray.ang.AppConfig.TAG
 import com.v2ray.ang.BuildConfig
-import com.v2ray.ang.dto.entities.AssetUrlCache
-import com.v2ray.ang.dto.entities.AssetUrlItem
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.extension.isGroupType
 import com.v2ray.ang.dto.entities.RulesetItem
 import com.v2ray.ang.dto.entities.ServerAffiliationInfo
 import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.dto.entities.SubscriptionItem
-import com.v2ray.ang.dto.entities.WebDavConfig
 import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.flow.collectLatest
@@ -43,13 +40,11 @@ object MmkvManager {
     private const val ID_SERVER_RAW = "SERVER_RAW"
     private const val ID_SERVER_AFF = "SERVER_AFF"
     private const val ID_SUB = "SUB"
-    private const val ID_ASSET = "ASSET"
     private const val ID_SETTING = "SETTING"
     private const val KEY_SELECTED_SERVER = "SELECTED_SERVER"
     private const val KEY_ANG_CONFIGS = "ANG_CONFIGS"
     private const val KEY_SUB_SERVER_PREFIX = "SUB_SERVERS_"
     private const val KEY_SUB_IDS = "SUB_IDS"
-    private const val KEY_WEBDAV_CONFIG = "WEBDAV_CONFIG"
     private const val KEY_GEO_LAST_CHECKED_AT = "pref_shroxy_geo_last_checked_at"
     private const val KEY_GEO_LAST_ETAG = "pref_shroxy_geo_last_etag"
     private const val KEY_GEO_LAST_TAG = "pref_shroxy_geo_last_tag"
@@ -77,7 +72,6 @@ object MmkvManager {
     private val serverRawStorage by lazy { MMKV.mmkvWithID(ID_SERVER_RAW, MMKV.MULTI_PROCESS_MODE) }
     private val serverAffStorage by lazy { MMKV.mmkvWithID(ID_SERVER_AFF, MMKV.MULTI_PROCESS_MODE) }
     private val subStorage by lazy { MMKV.mmkvWithID(ID_SUB, MMKV.MULTI_PROCESS_MODE) }
-    private val assetStorage by lazy { MMKV.mmkvWithID(ID_ASSET, MMKV.MULTI_PROCESS_MODE) }
     private val settingsStorage by lazy { MMKV.mmkvWithID(ID_SETTING, MMKV.MULTI_PROCESS_MODE) }
 
     private inline fun <T> withProfileIndexLock(block: () -> T): T {
@@ -572,56 +566,6 @@ object MmkvManager {
         return serverRawStorage.decodeString(guid)
     }
 
-    /**
-     * Removes profile payloads that are provably absent from their raw SUB_SERVERS_* index.
-     *
-     * SUB_IDS and SUB are intentionally ignored: either store can be missing after MMKV
-     * recovery while the group indexes still identify live profiles. If any group index or
-     * profile payload needed for a decision is unreadable, that data is preserved.
-     *
-     * @return The number of profile payloads removed, or null if cleanup could not run safely.
-     */
-    internal fun removeOrphanedServerProfiles(): Int? = synchronized(mainStorage) {
-        mainStorage.lock()
-        try {
-            val indexedServersBySubscription = mainStorage.allKeys().orEmpty()
-                .asSequence()
-                .filter { key -> key.startsWith(KEY_SUB_SERVER_PREFIX) }
-                .associate { key ->
-                    val subscriptionId = key.removePrefix(KEY_SUB_SERVER_PREFIX)
-                    val json = mainStorage.decodeString(key)
-                    val serverIds = if (json.isNullOrBlank()) {
-                        null
-                    } else {
-                        JsonUtil.fromJsonSafe(json, Array<String>::class.java)?.toSet()
-                    }
-                    subscriptionId to serverIds
-                }
-
-            val profiles = profileFullStorage.allKeys().orEmpty().map { guid ->
-                StoredProfileReference(
-                    guid = guid,
-                    subscriptionId = decodeServerConfig(guid)?.subscriptionId,
-                )
-            }
-            val orphans = OrphanProfileCleaner.findOrphans(
-                profiles = profiles,
-                indexedServersBySubscription = indexedServersBySubscription,
-                selectedServer = getSelectServer(),
-            ) ?: return@synchronized null
-
-            if (orphans.isNotEmpty()) {
-                val keys = orphans.toTypedArray()
-                profileFullStorage.removeValuesForKeys(keys)
-                serverAffStorage.removeValuesForKeys(keys)
-                serverRawStorage.removeValuesForKeys(keys)
-            }
-            orphans.size
-        } finally {
-            mainStorage.unlock()
-        }
-    }
-
     //endregion
 
     //region Subscriptions
@@ -727,58 +671,6 @@ object MmkvManager {
             // Keep the first occurrence so a damaged index cannot produce duplicate Compose keys.
             JsonUtil.fromJsonSafe(json, Array<String>::class.java)?.distinct()?.toMutableList() ?: mutableListOf()
         }
-    }
-
-    //endregion
-
-    //region Asset
-
-    /**
-     * Decodes the asset URLs.
-     *
-     * @return The list of asset URLs.
-     */
-    fun decodeAssetUrls(): List<AssetUrlCache> {
-        val assetUrlItems = mutableListOf<AssetUrlCache>()
-        assetStorage.allKeys()?.forEach { key ->
-            val json = assetStorage.decodeString(key)
-            if (!json.isNullOrBlank()) {
-                val item = JsonUtil.fromJsonSafe(json, AssetUrlItem::class.java) ?: AssetUrlItem()
-                assetUrlItems.add(AssetUrlCache(key, item))
-            }
-        }
-        return assetUrlItems.sortedBy { it.assetUrl.addedTime }
-    }
-
-    /**
-     * Removes the asset URL.
-     *
-     * @param assetid The asset ID.
-     */
-    fun removeAssetUrl(assetid: String) {
-        assetStorage.remove(assetid)
-    }
-
-    /**
-     * Encodes the asset.
-     *
-     * @param assetid The asset ID.
-     * @param assetItem The asset item.
-     */
-    fun encodeAsset(assetid: String, assetItem: AssetUrlItem) {
-        val key = assetid.ifBlank { Utils.getUuid() }
-        assetStorage.encode(key, JsonUtil.toJson(assetItem))
-    }
-
-    /**
-     * Decodes the asset.
-     *
-     * @param assetid The asset ID.
-     * @return The asset item.
-     */
-    fun decodeAsset(assetid: String): AssetUrlItem? {
-        val json = assetStorage.decodeString(assetid) ?: return null
-        return JsonUtil.fromJsonSafe(json, AssetUrlItem::class.java)
     }
 
     //endregion
@@ -979,25 +871,6 @@ object MmkvManager {
      */
     fun decodeStartOnBoot(): Boolean {
         return decodeSettingsBool(PREF_IS_BOOTED, false)
-    }
-
-    //endregion
-
-    //region WebDAV
-
-    /**
-     * Encodes the WebDAV config as JSON into storage.
-     */
-    fun encodeWebDavConfig(config: WebDavConfig): Boolean {
-        return mainStorage.encode(KEY_WEBDAV_CONFIG, JsonUtil.toJson(config))
-    }
-
-    /**
-     * Decodes the WebDAV config from storage.
-     */
-    fun decodeWebDavConfig(): WebDavConfig? {
-        val json = mainStorage.decodeString(KEY_WEBDAV_CONFIG) ?: return null
-        return JsonUtil.fromJsonSafe(json, WebDavConfig::class.java)
     }
 
     //endregion

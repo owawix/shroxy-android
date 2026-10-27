@@ -126,16 +126,6 @@
         <activity
             android:name=".ui.ScannerActivity"
             android:exported="false" />
-        <activity
-            android:name=".ui.logcat.LogcatActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.userasset.UserAssetActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.userasset.UserAssetUrlActivity"
-            android:windowSoftInputMode="stateUnchanged|adjustResize"
-            android:exported="false" />
 
         <activity
             android:name=".ui.shortcut.ScScannerActivity"
@@ -178,19 +168,6 @@
                 <data android:host="install-sub" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".ui.checkupdate.CheckUpdateActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.backup.BackupActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.AboutActivity"
-            android:exported="false" />
-        <activity
-            android:name=".ui.TranslatorsActivity"
-            android:exported="false" />
-
         <service
             android:name=".service.CoreVpnService"
             android:enabled="true"

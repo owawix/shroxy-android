@@ -40,9 +40,11 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.v2ray.ang.R
+import com.v2ray.ang.dto.entities.SubscriptionErrorCode
 import com.v2ray.ang.ui.compose.AppTheme
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -70,6 +72,7 @@ fun ShroxySubscriptionGroup(
     onDelete: () -> Unit,
     subscriptionUrl: String? = null,
     onOpenSubscriptionUrl: () -> Unit = {},
+    errorCode: String? = null,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -110,9 +113,61 @@ fun ShroxySubscriptionGroup(
                 subscriptionUrl = subscriptionUrl,
                 onOpenSubscriptionUrl = onOpenSubscriptionUrl,
             )
+            // Failed import with no servers: the body area shows the update error instead
+            // of staying blank (rows render outside the card and there are none).
+            if (!hasRows && !errorCode.isNullOrEmpty()) {
+                SubscriptionErrorBody(errorCode = errorCode)
+            }
         }
     }
 }
+
+@Composable
+private fun SubscriptionErrorBody(errorCode: String) {
+    val error = subscriptionErrorText(errorCode) ?: return
+    val text = if (error.httpStatus != null) {
+        stringResource(error.resId, error.httpStatus)
+    } else {
+        stringResource(error.resId)
+    }
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+    )
+}
+
+/**
+ * Maps a persisted [com.v2ray.ang.dto.entities.SubscriptionItem.lastError] code to a
+ * localized string resource. Pure (non-composable) so the mapping is unit-testable.
+ * Unknown codes fall back to the generic message; the HTTP status (digits only) is
+ * passed as a format argument so no URL/host ever reaches the UI text.
+ */
+internal data class SubscriptionErrorText(val resId: Int, val httpStatus: String? = null)
+
+internal fun subscriptionErrorText(errorCode: String?): SubscriptionErrorText? = when {
+    errorCode.isNullOrEmpty() -> null
+    errorCode == SubscriptionErrorCode.NETWORK ->
+        SubscriptionErrorText(R.string.shroxy_sub_error_network)
+    errorCode == SubscriptionErrorCode.PARSE ->
+        SubscriptionErrorText(R.string.shroxy_sub_error_parse)
+    errorCode == SubscriptionErrorCode.EMPTY ->
+        SubscriptionErrorText(R.string.shroxy_sub_error_empty)
+    HTTP_ERROR_CODE.matches(errorCode) ->
+        SubscriptionErrorText(
+            R.string.shroxy_sub_error_http,
+            errorCode.removePrefix(SubscriptionErrorCode.HTTP_PREFIX),
+        )
+    else -> SubscriptionErrorText(R.string.shroxy_sub_error_generic)
+}
+
+private val HTTP_ERROR_CODE = Regex("http_\\d+")
 
 @Composable
 private fun GroupHeader(

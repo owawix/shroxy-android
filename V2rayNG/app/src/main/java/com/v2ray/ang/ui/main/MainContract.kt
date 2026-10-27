@@ -29,7 +29,9 @@ data class MainUiState(
     /** IDs of subscription groups whose server list is expanded (empty = all collapsed). */
     val expandedGroupIds: Set<String> = emptySet(),
     /** Shroxy bypass-RU routing mode (PREF_SHROXY_BYPASS_RU); false = global proxy mode. */
-    val bypassRu: Boolean = false
+    val bypassRu: Boolean = false,
+    /** A clipboard/QR/batch import is running; the Shroxy screen shows the skeleton card. */
+    val importInProgress: Boolean = false
 )
 
 /**

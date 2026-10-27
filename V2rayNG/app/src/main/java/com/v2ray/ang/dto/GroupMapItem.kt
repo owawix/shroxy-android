@@ -10,4 +10,6 @@ data class GroupMapItem(
     val lastUpdated: Long = 0,
     /** Subscription URL for external open (globe action); null/blank hides the action. */
     val subscriptionUrl: String? = null,
+    /** Stable error code of the last failed update, or null; mapped to localized text in the UI. */
+    val lastError: String? = null,
 )

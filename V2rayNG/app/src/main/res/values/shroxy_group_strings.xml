@@ -18,4 +18,9 @@
     </string-array>
     <string name="shroxy_add_from_clipboard">Add from clipboard</string>
     <string name="shroxy_scan_qr">Scan QR code</string>
+    <string name="shroxy_sub_error_network">Subscription update failed: no connection</string>
+    <string name="shroxy_sub_error_http">Subscription update failed (HTTP %1$s)</string>
+    <string name="shroxy_sub_error_parse">Subscription update failed: invalid format</string>
+    <string name="shroxy_sub_error_empty">Subscription update failed: empty response</string>
+    <string name="shroxy_sub_error_generic">Subscription update failed</string>
 </resources>

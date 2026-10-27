@@ -7,8 +7,8 @@ import org.junit.jupiter.api.Test
 
 class MainGroupVisibilityTest {
 
-    private fun sub(guid: String, remarks: String = guid) =
-        SubscriptionCache(guid, SubscriptionItem(remarks = remarks))
+    private fun sub(guid: String, remarks: String = guid, lastError: String? = null) =
+        SubscriptionCache(guid, SubscriptionItem(remarks = remarks, lastError = lastError))
 
     @Test
     fun pseudoAllGroupIsKeptWhenItHasServers() {
@@ -44,6 +44,24 @@ class MainGroupVisibilityTest {
         val visible = visibleGroupSubscriptions(subscriptions) { false }
 
         assertEquals(emptyList<String>(), visible.map { it.guid })
+    }
+
+    @Test
+    fun errorSubscriptionIsVisibleWithoutServers() {
+        val subscriptions = listOf(sub("sub-1", lastError = "network"))
+
+        val visible = visibleGroupSubscriptions(subscriptions) { false }
+
+        assertEquals(listOf("sub-1"), visible.map { it.guid })
+    }
+
+    @Test
+    fun emptySubscriptionWithoutErrorIsFilteredOut() {
+        val subscriptions = listOf(sub("sub-1", lastError = null), sub("sub-2", lastError = "http_403"))
+
+        val visible = visibleGroupSubscriptions(subscriptions) { false }
+
+        assertEquals(listOf("sub-2"), visible.map { it.guid })
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.v2ray.ang.dto.SubscriptionUpdateResult
 import com.v2ray.ang.dto.UrlContentRequest
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.dto.entities.SubscriptionCache
+import com.v2ray.ang.dto.entities.SubscriptionErrorCode
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.dto.entities.SubscriptionUsageInfo
 import com.v2ray.ang.enums.EConfigType
@@ -33,6 +34,9 @@ import java.net.URI
 object AngConfigManager {
 
     private const val IMPORT_SUB_FALLBACK_NAME = "import sub"
+
+    /** Matches the HTTP status embedded in HttpUtil's IOException message. */
+    private val HTTP_STATUS_MESSAGE_REGEX = Regex("status code (\\d+)")
 
     private data class ParsedProfile(
         val profile: ProfileItem,
@@ -503,6 +507,9 @@ object AngConfigManager {
                 )
             }
 
+            // Error code of the last failed fetch attempt; only stable codes are persisted
+            // (see SubscriptionErrorCode) — never raw messages with host:port.
+            var fetchErrorCode: String? = null
             var configText = try {
                 val httpPort = SettingsManager.getHttpPort()
                 HttpUtil.getUrlContentWithUserAgent(
@@ -519,9 +526,13 @@ object AngConfigManager {
                 )
             } catch (e: Exception) {
                 LogUtil.e(AppConfig.ANG_PACKAGE, "Update subscription: proxy not ready or other error", e)
+                fetchErrorCode = classifySubscriptionFetchError(e)
                 ""
             }
             if (configText.isEmpty()) {
+                // The direct attempt's outcome decides: a successful-but-empty response
+                // means "empty", not the proxy attempt's connection error.
+                fetchErrorCode = null
                 configText = try {
                     HttpUtil.getUrlContentWithUserAgent(
                         UrlContentRequest(
@@ -533,10 +544,16 @@ object AngConfigManager {
                     )
                 } catch (e: Exception) {
                     LogUtil.e(AppConfig.TAG, "Update subscription: Failed to get URL content with user agent", e)
+                    fetchErrorCode = classifySubscriptionFetchError(e)
                     ""
                 }
             }
             if (configText.isEmpty()) {
+                persistSubscriptionError(
+                    it.guid,
+                    it.subscription,
+                    fetchErrorCode ?: SubscriptionErrorCode.EMPTY
+                )
                 return SubscriptionUpdateResult(failureCount = 1)
             }
 
@@ -551,6 +568,7 @@ object AngConfigManager {
                 if (!profileTitle.isNullOrBlank() && hasAutoImportName(it.subscription)) {
                     it.subscription.remarks = profileTitle
                 }
+                it.subscription.lastError = null
                 MmkvManager.encodeSubscription(it.guid, it.subscription)
                 LogUtil.i(AppConfig.TAG, "Subscription updated: ${it.subscription.remarks}, $count configs")
                 return SubscriptionUpdateResult(
@@ -559,12 +577,38 @@ object AngConfigManager {
                 )
             } else {
                 // Got response but no valid configs parsed
+                persistSubscriptionError(it.guid, it.subscription, SubscriptionErrorCode.PARSE)
                 return SubscriptionUpdateResult(failureCount = 1)
             }
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to update config via subscription", e)
+            persistSubscriptionError(it.guid, it.subscription, classifySubscriptionFetchError(e))
             return SubscriptionUpdateResult(failureCount = 1)
         }
+    }
+
+    /**
+     * Classifies a subscription fetch failure into a stable, locale-agnostic error code.
+     * HTTP statuses surface from HttpUtil as "Request failed with status code <n>";
+     * anything else (timeouts, DNS, TLS, refused connections) is "network". The returned
+     * code never contains the URL, host, or port — see [SubscriptionErrorCode].
+     */
+    internal fun classifySubscriptionFetchError(error: Throwable): String {
+        val message = error.message.orEmpty()
+        val statusCode = HTTP_STATUS_MESSAGE_REGEX.find(message)?.groupValues?.get(1)?.toIntOrNull()
+        if (statusCode != null) {
+            return SubscriptionErrorCode.http(statusCode)
+        }
+        return SubscriptionErrorCode.NETWORK
+    }
+
+    /**
+     * Persists only the error code of a failed update. Servers and profiles are left
+     * untouched on failure; the previous successful content stays active.
+     */
+    private fun persistSubscriptionError(guid: String, subscription: SubscriptionItem, code: String) {
+        subscription.lastError = code
+        MmkvManager.encodeSubscription(guid, subscription)
     }
 
     /**

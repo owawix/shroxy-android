@@ -55,6 +55,7 @@ import com.v2ray.ang.ui.shroxy.components.ShroxyPowerButton
 import com.v2ray.ang.ui.shroxy.components.ShroxyPowerState
 import com.v2ray.ang.ui.shroxy.components.ShroxyServerRow
 import com.v2ray.ang.ui.shroxy.components.ShroxySubscriptionGroup
+import com.v2ray.ang.ui.shroxy.components.ShroxySubscriptionGroupSkeleton
 import com.v2ray.ang.ui.shroxy.components.ShroxyTestPingRow
 import com.v2ray.ang.ui.shroxy.components.ShroxyTopBar
 
@@ -137,7 +138,10 @@ fun ShroxyHomeScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             Box(modifier = Modifier.weight(1f)) {
-                if (showEmptyState(groups.size)) {
+                // While an import runs, the skeleton card sits above the group list (or in
+                // place of the empty state, so the first import lands where its card will
+                // appear); the bottom pills stay visible either way.
+                if (showEmptyState(groups.size) && !uiState.importInProgress) {
                     ShroxyEmptyContentZone(
                         onOpenPurchaseLink = onOpenPurchaseLink,
                         onAction = onAction,
@@ -186,6 +190,13 @@ private fun ShroxyGroupList(
     footer: @Composable () -> Unit,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
+        if (uiState.importInProgress) {
+            item(key = "import_skeleton") {
+                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                    ShroxySubscriptionGroupSkeleton()
+                }
+            }
+        }
         items(items = uiState.groups, key = { it.id }) { group ->
             val groupState by mainViewModel.serverGroupState(group.id)
                 .collectAsStateWithLifecycle()
@@ -211,6 +222,7 @@ private fun ShroxyGroupList(
                     onOpenSubscriptionUrl = {
                         group.subscriptionUrl?.let { onAction(MainAction.OpenSubscriptionLink(it)) }
                     },
+                    errorCode = group.lastError,
                 )
                 if (expanded) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {

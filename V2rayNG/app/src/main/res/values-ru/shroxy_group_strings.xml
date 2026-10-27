@@ -18,4 +18,9 @@
     </string-array>
     <string name="shroxy_add_from_clipboard">Добавить из буфера обмена</string>
     <string name="shroxy_scan_qr">Сканировать QR-код</string>
+    <string name="shroxy_sub_error_network">Не удалось обновить подписку: нет соединения</string>
+    <string name="shroxy_sub_error_http">Не удалось обновить подписку (HTTP %1$s)</string>
+    <string name="shroxy_sub_error_parse">Не удалось обновить подписку: неверный формат</string>
+    <string name="shroxy_sub_error_empty">Не удалось обновить подписку: пустой ответ</string>
+    <string name="shroxy_sub_error_generic">Не удалось обновить подписку</string>
 </resources>

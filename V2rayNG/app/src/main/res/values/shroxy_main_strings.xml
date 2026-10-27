@@ -17,4 +17,5 @@
     <string name="from_clipboard">From clipboard</string>
     <string name="qr_code">QR code</string>
     <string name="shroxy_clipboard_empty">Clipboard is empty</string>
+    <string name="shroxy_import_in_progress">Import already in progress</string>
 </resources>

@@ -22,6 +22,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mockStatic
 import org.mockito.Mockito.never
 import org.mockito.Mockito.timeout
+import org.mockito.Mockito.times
 import org.mockito.kotlin.any
 import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
@@ -182,6 +185,107 @@ class MainViewModelTest {
             withTimeoutOrNull(5_000) { viewModel.snackbarEvent.first() }
         }
         assertEquals("imported", event)
+    }
+
+    @Test
+    fun importSetsInProgressFlagAndClearsItAfterImport() {
+        val dataSource = newDataSource()
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        runBlocking {
+            whenever(dataSource.getClipboardContent()).thenReturn("vmess://config")
+            whenever(dataSource.importBatchConfig(any<String>(), any<String>(), any<Boolean>()))
+                .thenAnswer {
+                    entered.countDown()
+                    release.await(5, TimeUnit.SECONDS)
+                    1 to 0
+                }
+        }
+        val viewModel = newViewModel(dataSource)
+        assertFalse(viewModel.uiState.value.importInProgress)
+
+        viewModel.onAction(MainAction.ImportClipboard)
+
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        assertTrue(viewModel.uiState.value.importInProgress)
+        release.countDown()
+        awaitTrue(5_000) { !viewModel.uiState.value.importInProgress }
+        assertFalse(viewModel.uiState.value.importInProgress)
+    }
+
+    @Test
+    fun importBatchConfigSetsInProgressFlagAndClearsItAfterImport() {
+        val dataSource = newDataSource()
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        runBlocking {
+            whenever(dataSource.importBatchConfig(any<String>(), any<String>(), any<Boolean>()))
+                .thenAnswer {
+                    entered.countDown()
+                    release.await(5, TimeUnit.SECONDS)
+                    1 to 0
+                }
+        }
+        val viewModel = newViewModel(dataSource)
+
+        viewModel.onAction(MainAction.ImportBatchConfig("vmess://config"))
+
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        assertTrue(viewModel.uiState.value.importInProgress)
+        release.countDown()
+        awaitTrue(5_000) { !viewModel.uiState.value.importInProgress }
+        assertFalse(viewModel.uiState.value.importInProgress)
+    }
+
+    @Test
+    fun importFailureClearsInProgressFlag() {
+        val dataSource = newDataSource()
+        runBlocking {
+            whenever(dataSource.getClipboardContent()).thenReturn("vmess://config")
+            whenever(dataSource.importBatchConfig(any<String>(), any<String>(), any<Boolean>()))
+                .thenThrow(RuntimeException("boom"))
+        }
+        val viewModel = newViewModel(dataSource)
+
+        viewModel.onAction(MainAction.ImportClipboard)
+
+        awaitTrue(5_000) { !viewModel.uiState.value.importInProgress }
+        assertFalse(viewModel.uiState.value.importInProgress)
+    }
+
+    @Test
+    fun secondImportWhileInProgressIsDroppedAndEmitsInProgressSnackbar() {
+        val dataSource = newDataSource()
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        runBlocking {
+            whenever(dataSource.getClipboardContent()).thenReturn("vmess://first")
+            whenever(dataSource.importBatchConfig(any<String>(), any<String>(), any<Boolean>()))
+                .thenAnswer {
+                    entered.countDown()
+                    release.await(5, TimeUnit.SECONDS)
+                    1 to 0
+                }
+        }
+        val viewModel = newViewModel(dataSource)
+
+        viewModel.onAction(MainAction.ImportClipboard)
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        viewModel.onAction(MainAction.ImportBatchConfig("vmess://second"))
+
+        val event = runBlocking {
+            withTimeoutOrNull(5_000) { viewModel.snackbarEvent.first() }
+        }
+        assertEquals("str-${R.string.shroxy_import_in_progress}", event)
+        release.countDown()
+        runBlocking {
+            verify(dataSource, timeout(5_000)).importBatchConfig(any<String>(), any<String>(), any<Boolean>())
+        }
+        awaitTrue(5_000) { !viewModel.uiState.value.importInProgress }
+        // The second request was dropped: exactly one import reached the data source.
+        runBlocking {
+            verify(dataSource, times(1)).importBatchConfig(any<String>(), any<String>(), any<Boolean>())
+        }
     }
 
     @Test

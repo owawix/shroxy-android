@@ -74,16 +74,17 @@ private fun applyTestDelayResultsToRows(
 
 /**
  * Subscriptions rendered as group cards. The pseudo "All" group (blank GUID) and real
- * subscriptions are kept only while they contain at least one server, so an empty
- * default container, a failed import, or an empty "All" group never renders a blank
- * group card and the screen-level empty state shows instead. Filtering is GUID-based;
- * deletion and selection operate on the same GUIDs.
+ * subscriptions are kept while they contain at least one server, plus any subscription
+ * whose last update failed (lastError set) so a failed import renders an error card
+ * instead of vanishing. An empty default container or an empty "All" group with no
+ * error never renders a blank group card and the screen-level empty state shows
+ * instead. Filtering is GUID-based; deletion and selection operate on the same GUIDs.
  */
 internal fun visibleGroupSubscriptions(
     subscriptions: List<SubscriptionCache>,
     hasServers: (String) -> Boolean,
 ): List<SubscriptionCache> =
-    subscriptions.filter { hasServers(it.guid) }
+    subscriptions.filter { hasServers(it.guid) || !it.subscription.lastError.isNullOrEmpty() }
 
 class MainViewModel(
     application: Application,
@@ -501,6 +502,7 @@ class MainViewModel(
                         },
                         lastUpdated = it.subscription.lastUpdated,
                         subscriptionUrl = it.subscription.url,
+                        lastError = it.subscription.lastError,
                     )
                 }
                 val selectedGroup = resolveSelectedGroup(groups)
@@ -555,27 +557,52 @@ class MainViewModel(
     }
 
     // ---------- Business actions (coroutine-based) ----------
+    // ---------- Import serialization (one import at a time) ----------
+    private val importMutex = Mutex()
+
+    /**
+     * Serializes clipboard/QR/batch imports: only one import runs at a time. A request
+     * that arrives while another import is running is dropped with a snackbar, and the
+     * [MainUiState.importInProgress] flag is set for the whole import (success or failure)
+     * so the Shroxy screen can show the subscription skeleton card.
+     */
+    private suspend fun runImportGuarded(block: suspend () -> Unit) {
+        if (!importMutex.tryLock()) {
+            _snackbarEvent.send(dataSource.getString(R.string.shroxy_import_in_progress))
+            return
+        }
+        _uiState.update { it.copy(importInProgress = true) }
+        try {
+            block()
+        } finally {
+            importMutex.unlock()
+            _uiState.update { it.copy(importInProgress = false) }
+        }
+    }
+
     private fun importBatchConfig(configText: String) {
         launchLoading {
             withContext(ioDispatcher) {
-                try {
-                    val (count, countSub) = dataSource.importBatchConfig(
-                        configText, uiState.value.selectedGroupId, true
-                    )
-                    when {
-                        count > 0 -> {
-                            toast(dataSource.getString(R.string.title_import_config_count, count))
-                            setupGroupTab(forceRefresh = true)
-                        }
+                runImportGuarded {
+                    try {
+                        val (count, countSub) = dataSource.importBatchConfig(
+                            configText, uiState.value.selectedGroupId, true
+                        )
+                        when {
+                            count > 0 -> {
+                                toast(dataSource.getString(R.string.title_import_config_count, count))
+                                setupGroupTab(forceRefresh = true)
+                            }
 
-                        countSub > 0 -> setupGroupTab(forceRefresh = true)
-                        else -> toastError(R.string.toast_failure)
+                            countSub > 0 -> setupGroupTab(forceRefresh = true)
+                            else -> toastError(R.string.toast_failure)
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (e: Exception) {
+                        LogUtil.e(AppConfig.TAG, "Failed to import batch config", e)
+                        toastError(R.string.toast_failure)
                     }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (e: Exception) {
-                    LogUtil.e(AppConfig.TAG, "Failed to import batch config", e)
-                    toastError(R.string.toast_failure)
                 }
             }
         }
@@ -583,30 +610,32 @@ class MainViewModel(
 
     private fun importClipboard() {
         viewModelScope.launch(ioDispatcher) {
-            val text = dataSource.getClipboardContent()
-            if (text.isBlank()) {
-                LogUtil.e(AppConfig.TAG, "Failed to import from clipboard: clipboard is empty")
-                _snackbarEvent.send(dataSource.getString(R.string.shroxy_clipboard_empty))
-                return@launch
-            }
-            try {
-                val (count, countSub) = dataSource.importBatchConfig(
-                    text, uiState.value.selectedGroupId, true
-                )
-                when {
-                    count > 0 -> {
-                        _snackbarEvent.send(dataSource.getString(R.string.title_import_config_count, count))
-                        setupGroupTab(forceRefresh = true)
-                    }
-
-                    countSub > 0 -> setupGroupTab(forceRefresh = true)
-                    else -> _snackbarEvent.send(dataSource.getString(R.string.toast_failure))
+            runImportGuarded {
+                val text = dataSource.getClipboardContent()
+                if (text.isBlank()) {
+                    LogUtil.e(AppConfig.TAG, "Failed to import from clipboard: clipboard is empty")
+                    _snackbarEvent.send(dataSource.getString(R.string.shroxy_clipboard_empty))
+                    return@runImportGuarded
                 }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (e: Exception) {
-                LogUtil.e(AppConfig.TAG, "Failed to import config from clipboard", e)
-                _snackbarEvent.send(dataSource.getString(R.string.toast_failure))
+                try {
+                    val (count, countSub) = dataSource.importBatchConfig(
+                        text, uiState.value.selectedGroupId, true
+                    )
+                    when {
+                        count > 0 -> {
+                            _snackbarEvent.send(dataSource.getString(R.string.title_import_config_count, count))
+                            setupGroupTab(forceRefresh = true)
+                        }
+
+                        countSub > 0 -> setupGroupTab(forceRefresh = true)
+                        else -> _snackbarEvent.send(dataSource.getString(R.string.toast_failure))
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Failed to import config from clipboard", e)
+                    _snackbarEvent.send(dataSource.getString(R.string.toast_failure))
+                }
             }
         }
     }
@@ -654,6 +683,10 @@ class MainViewModel(
                     if (result.configCount > 0) {
                         setupGroupTab(forceRefresh = true)
                         refreshSelectedGuid()
+                    } else if (result.failureCount > 0) {
+                        // No new configs, but the failed subscription's lastError was
+                        // re-persisted; refresh the group map so the error card updates.
+                        setupGroupTab(forceRefresh = true)
                     }
                 } catch (cancelled: CancellationException) {
                     throw cancelled

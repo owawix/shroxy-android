@@ -228,7 +228,7 @@ class GeoUpdateManager(
 
     private fun cleanupTempFiles() {
         // Only delete this manager's own temp names; a blanket "*_temp" sweep
-        // could clobber an in-flight manual UserAssetViewModel download that
+        // could clobber an in-flight manual user-asset download that
         // shares the same user-asset directory.
         for (name in geoFileNames) {
             File(assetDir, "${name}_temp").delete()

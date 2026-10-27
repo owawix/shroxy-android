@@ -114,8 +114,9 @@ object SettingsManager {
 
     /**
      * Get the effective routing rulesets for the current Shroxy routing mode.
-     * The rulesets mirror the preset assets custom_routing_white_russia (bypass) and
-     * custom_routing_global (global); the legacy MMKV ruleset list is not used here.
+     * The rulesets are hardcoded for the bypass (udp443 blocked, private/ru direct) and
+     * global (udp443 blocked, private direct, rest proxied) modes; the legacy MMKV
+     * ruleset list is not used here.
      * @param context The application context.
      * @return The effective rulesets and their source mode.
      */
@@ -124,8 +125,8 @@ object SettingsManager {
     }
 
     /**
-     * Build the bypass-RU rulesets (mirror of assets/custom_routing_white_russia
-     * without the bittorrent entry): block udp443, LAN direct, RU domains/IP direct.
+     * Build the hardcoded Shroxy bypass-RU ruleset: udp443 blocked,
+     * private/RU domains/IP direct.
      * @return The ruleset list.
      */
     private fun shroxyBypassRuRulesets(): List<RulesetItem> {
@@ -160,8 +161,8 @@ object SettingsManager {
     }
 
     /**
-     * Build the global rulesets (mirror of assets/custom_routing_global):
-     * block udp443, LAN direct, everything else to proxy.
+     * Build the hardcoded Shroxy global ruleset: udp443 blocked,
+     * private direct, everything else to proxy.
      * @return The ruleset list.
      */
     private fun shroxyGlobalRulesets(): List<RulesetItem> {

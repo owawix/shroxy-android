@@ -72,13 +72,7 @@ val ColorScheme.powerRingActiveStart: Color
 val ColorScheme.powerRingInactiveEnd: Color
     get() = Color(0xFF8B9099) // Gray: inactive gradient end (bottom-right) and inactive icon tint
 
-// Semantic Colors
-val colorPing = Color(0xFF009966) // Green
-val colorPingRed = Color(0xFFFF0099) // Pink Red
-val colorConfigType = Color(0xFFf97910) // Orange
-val colorFabActive = Color(0xFFf97910) // Orange
-val colorFabInactiveLight = Color(0xFF9C9C9C) // Gray
-val colorFabInactiveDark = Color(0xFF646464) // Dark Gray
+// Divider Colors
 val dividerColorLight = Color(0xFFE0E0E0) // Light Gray
 val dividerColorDark = Color(0xFF424242) // Dark Gray
 

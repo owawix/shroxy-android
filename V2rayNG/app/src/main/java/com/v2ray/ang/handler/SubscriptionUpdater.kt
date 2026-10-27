@@ -58,8 +58,8 @@ object SubscriptionUpdater {
     }
 
     /**
-     * Sync a single subscription's task.
-     * Call from: SubEditActivity after saving, after a manual update (to reset the timer).
+     * Sync a single subscription's task (e.g. after saving a subscription
+     * or after a manual update to reset the timer).
      */
     fun syncOne(context: Context = AngApplication.application, subId: String) {
         scheduleOne(

@@ -15,20 +15,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.v2ray.ang.R
 
 @Composable
 fun PreferenceGroupHeader(title: String, modifier: Modifier = Modifier) {
@@ -40,37 +31,6 @@ fun PreferenceGroupHeader(title: String, modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
     )
-}
-
-@Composable
-fun CollapsiblePreferenceGroupHeader(
-    title: String,
-    expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onExpandedChange(!expanded) }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.weight(1f)
-        )
-        Icon(
-            painter = painterResource(R.drawable.ic_expand_more_24dp),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier
-                .size(24.dp)
-                .rotate(if (expanded) 180f else 0f)
-        )
-    }
 }
 
 @Composable
@@ -121,116 +81,6 @@ private fun SettingsItemRow(
         }
         trailing?.invoke()
     }
-}
-
-@Composable
-fun SettingsEditItem(
-    icon: Painter? = null,
-    title: String,
-    value: String,
-    onValueChanged: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    isPassword: Boolean = false,
-    keyboardNumber: Boolean = false
-) {
-    var showDialog by remember { mutableStateOf(false) }
-    val description = if (isPassword) {
-        if (value.isEmpty()) null else "******"
-    } else {
-        value.ifEmpty { null }
-    }
-
-    SettingsItemRow(
-        icon = icon,
-        title = title,
-        description = description,
-        enabled = enabled,
-        onClick = if (enabled) {
-            { showDialog = true }
-        } else null,
-        modifier = modifier
-    )
-
-    if (showDialog) {
-        var text by remember { mutableStateOf(value) }
-        InputDialog(
-            title = title,
-            fields = listOf(
-                InputField(
-                    label = title,
-                    value = text,
-                    visualTransformation = VisualTransformation.None
-                )
-            ),
-            onFieldChange = { _, v -> text = v },
-            confirmText = stringResource(R.string.action_ok),
-            dismissText = stringResource(R.string.action_cancel),
-            onConfirm = { showDialog = false; onValueChanged(text) },
-            onDismiss = { showDialog = false }
-        )
-    }
-}
-
-@Composable
-fun SettingsListItem(
-    icon: Painter? = null,
-    title: String,
-    entries: List<String>,
-    values: List<String>,
-    selectedValue: String,
-    onSelected: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true
-) {
-    var showDialog by remember { mutableStateOf(false) }
-    val options = entries.zip(values)
-    val selectedOption = options.find { it.second == selectedValue } ?: options.firstOrNull()
-    val summary = selectedOption?.first.orEmpty()
-
-    SettingsItemRow(
-        icon = icon,
-        title = title,
-        description = summary.ifEmpty { null },
-        enabled = enabled,
-        onClick = if (enabled) {
-            { showDialog = true }
-        } else null,
-        modifier = modifier
-    )
-
-    if (showDialog) {
-        SelectListDialog(
-            title = title,
-            options = options,
-            optionText = { it.first },
-            selectedOption = selectedOption,
-            onSelected = { option ->
-                showDialog = false
-                onSelected(option.second)
-            },
-            onDismiss = { showDialog = false },
-            showRadio = true
-        )
-    }
-}
-
-@Composable
-fun SettingsMenuItem(
-    icon: Painter? = null,
-    title: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    subtitle: String? = null
-) {
-    SettingsItemRow(
-        icon = icon,
-        title = title,
-        description = subtitle,
-        enabled = true,
-        onClick = onClick,
-        modifier = modifier
-    )
 }
 
 @Composable

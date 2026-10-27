@@ -18,4 +18,6 @@
     <string name="qr_code">QR code</string>
     <string name="shroxy_clipboard_empty">Clipboard is empty</string>
     <string name="shroxy_import_in_progress">Import already in progress</string>
+    <string name="shroxy_sub_updating">Updating subscription</string>
+    <string name="shroxy_sub_updated">Subscription updated</string>
 </resources>

@@ -32,6 +32,8 @@ class SubscriptionReimportTest {
 
     @BeforeEach
     fun prepareStorage() {
+        // The JVM has no RemoteWorkManager/Application: the scheduling seam is a no-op here.
+        AngConfigManager.scheduleSubscriptionAutoUpdate = { }
         for ((storage, values) in listOf(main to mainValues, subs to subValues)) {
             reset(storage)
             values.clear()

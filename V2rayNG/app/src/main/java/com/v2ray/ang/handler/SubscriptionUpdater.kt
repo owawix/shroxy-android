@@ -78,17 +78,6 @@ object SubscriptionUpdater {
             .cancelUniqueWork(taskName(subId))
     }
 
-    /**
-     * Update the last updated timestamp and reschedule the task.
-     * This is used to reset the periodic timer and prevent rapid rescheduling loops.
-     */
-    fun updateLastUpdatedAndReschedule(context: Context = AngApplication.application, subId: String) {
-        val subItem = MmkvManager.decodeSubscription(subId) ?: return
-        subItem.lastUpdated = System.currentTimeMillis()
-        MmkvManager.encodeSubscription(subId, subItem)
-        syncOne(context, subId)
-    }
-
     // -------------------------------------------------------------------------
     // Internal scheduling logic
     // -------------------------------------------------------------------------
@@ -128,9 +117,13 @@ object SubscriptionUpdater {
             maxOf(0L, lastUpdated + intervalMillis - now)
         }
 
-        // Add a small floor to initial delay to prevent rapid rescheduling loops.
+        // A REPLACE request that comes due immediately must not fire an instant
+        // duplicate fetch: a fresh import has no lastUpdated yet and the import
+        // path already triggers the fetch itself, and an overdue subscription
+        // (migration rescheduling) would otherwise storm the panel at startup.
+        // Start the hourly cadence one full interval from now instead.
         if (existingWorkPolicy == ExistingPeriodicWorkPolicy.REPLACE && initialDelayMillis < 5000L) {
-            initialDelayMillis = 5000L
+            initialDelayMillis = intervalMillis
         }
 
         val request = PeriodicWorkRequestBuilder<UpdateTask>(intervalMinutes, TimeUnit.MINUTES)
@@ -176,8 +169,9 @@ object SubscriptionUpdater {
                 return Result.success()
             }
 
-            updateLastUpdatedAndReschedule(applicationContext, subId)
-
+            // No lastUpdated stamp here: the timestamp must advance only on a
+            // successful update (see AngConfigManager.updateConfigViaSub and the
+            // service success path), never before the fetch outcome is known.
             MessageHelper.sendMsg2SubscriptionService(
                 applicationContext,
                 SubscriptionUpdateMessage(AppConfig.MSG_SUB_UPDATE_START, true, listOf(subId))

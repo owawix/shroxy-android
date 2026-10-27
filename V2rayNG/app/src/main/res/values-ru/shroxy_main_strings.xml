@@ -18,4 +18,6 @@
     <string name="qr_code">QR-код</string>
     <string name="shroxy_clipboard_empty">Буфер обмена пуст</string>
     <string name="shroxy_import_in_progress">Импорт уже выполняется</string>
+    <string name="shroxy_sub_updating">Обновление подписки</string>
+    <string name="shroxy_sub_updated">Подписка обновлена</string>
 </resources>

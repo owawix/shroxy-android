@@ -35,6 +35,14 @@ object AngConfigManager {
 
     private const val IMPORT_SUB_FALLBACK_NAME = "import sub"
 
+    /**
+     * Schedules the hourly auto-update worker for a newly imported subscription.
+     * Replaceable seam for unit tests: the real path touches RemoteWorkManager and
+     * AngApplication, which do not exist under the JVM test runner.
+     */
+    internal var scheduleSubscriptionAutoUpdate: (subId: String) -> Unit =
+        { subId -> SubscriptionUpdater.syncOne(subId = subId) }
+
     /** Matches the HTTP status embedded in HttpUtil's IOException message. */
     private val HTTP_STATUS_MESSAGE_REGEX = Regex("status code (\\d+)")
 
@@ -693,7 +701,13 @@ object AngConfigManager {
         val subItem = SubscriptionItem()
         subItem.remarks = subscriptionImportName(uri)
         subItem.url = url
-        MmkvManager.encodeSubscription("", subItem)
+        // New subscriptions update hourly from the moment they are imported; the
+        // worker is scheduled right away so no app restart is required.
+        subItem.autoUpdate = true
+        subItem.updateInterval = AppConfig.SUBSCRIPTION_DEFAULT_UPDATE_INTERVAL_MINUTES
+        val guid = Utils.getUuid()
+        MmkvManager.encodeSubscription(guid, subItem)
+        scheduleSubscriptionAutoUpdate(guid)
         1
     }
 

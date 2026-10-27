@@ -9,6 +9,7 @@ import com.v2ray.ang.AppConfig.ANG_PACKAGE
 import com.v2ray.ang.handler.AppLocaleManager
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.handler.SettingsManager
+import com.v2ray.ang.handler.SubscriptionAutoUpdateMigration
 import com.v2ray.ang.service.GeoUpdateWorker
 import com.v2ray.ang.ui.compose.ThemeManager
 
@@ -50,6 +51,10 @@ class AngApplication : Application() {
         // only-if-absent inside initAssets keeps later runs cheap and never overwrites updated files.
         // Failures are caught and logged inside initAssets, so startup cannot crash.
         SettingsManager.initAssets(this, assets)
+
+        // One-time migration of pre-existing URL subscriptions to hourly auto-update,
+        // with a forced worker reschedule so the new intervals apply without a restart.
+        SubscriptionAutoUpdateMigration.run()
 
         // Daily geoip.dat/geosite.dat update; also covers cold starts (BootReceiver, QS-tile).
         GeoUpdateWorker.sync(this)

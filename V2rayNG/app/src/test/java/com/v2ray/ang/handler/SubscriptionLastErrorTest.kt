@@ -97,6 +97,16 @@ class SubscriptionLastErrorTest {
     }
 
     @Test
+    fun failedUpdateDoesNotAdvanceLastUpdated() {
+        withServer(httpResponse("200 OK", "this is not a subscription")) { url ->
+            val result = runUpdate(url)
+
+            assertEquals(1, result.failureCount)
+            assertEquals(-1L, savedSubscription(url).lastUpdated)
+        }
+    }
+
+    @Test
     fun successfulUpdateClearsLastError() {
         withServer(httpResponse("200 OK", VMESS_LINE)) { url ->
             val result = runUpdate(url, lastError = "http_403", stubProfileWrites = true)

@@ -12,9 +12,12 @@ import com.v2ray.ang.dto.SubscriptionUpdateMessage
 import com.v2ray.ang.dto.entities.SubscriptionCache
 import com.v2ray.ang.enums.NotificationChannelType
 import com.v2ray.ang.extension.serializable
+import com.v2ray.ang.extension.toast
+import com.v2ray.ang.extension.toastSuccess
 import com.v2ray.ang.handler.AngConfigManager
 import com.v2ray.ang.handler.AppLocaleManager
 import com.v2ray.ang.handler.MmkvManager
+import com.v2ray.ang.handler.SubscriptionUpdater
 import com.v2ray.ang.helper.NotificationHelper
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.CompletableDeferred
@@ -127,7 +130,15 @@ class SubscriptionUpdateService : Service() {
         )
 
         if (forcedUpdate || MmkvManager.decodeSettingsBool(AppConfig.PREF_UPDATE_SUBSCRIPTION, false)) {
-            AngConfigManager.updateConfigViaSub(sub)
+            toast(R.string.shroxy_sub_updating)
+            val result = AngConfigManager.updateConfigViaSub(sub)
+            if (result.successCount > 0) {
+                // Success path: the manager already stamped lastUpdated; re-sync this
+                // subscription's worker so its timer restarts from the fresh timestamp.
+                // Failures keep the old content and leave lastUpdated untouched.
+                SubscriptionUpdater.syncOne(this, sub.guid)
+                toastSuccess(R.string.shroxy_sub_updated)
+            }
         }
 
         if (MmkvManager.decodeSettingsBool(AppConfig.PREF_AUTO_TEST_AFTER_UPDATE_SUBSCRIPTION, false)) {

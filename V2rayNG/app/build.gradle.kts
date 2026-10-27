@@ -1,8 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     id("com.jaredsburrows.license")
+}
+
+// Release keystore lives at the repository root (parent of the Gradle rootProject).
+val repoRootDir = rootProject.projectDir.parentFile
+val keystorePropsFile = File(repoRootDir, "keystore.properties")
+val hasReleaseKeystore = keystorePropsFile.exists()
+val keystoreProps = Properties().apply {
+    if (hasReleaseKeystore) {
+        keystorePropsFile.inputStream().use { load(it) }
+    }
 }
 
 android {
@@ -38,6 +50,20 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            // Null-safe degrade: when keystore.properties is absent, this config stays
+            // incomplete and buildTypes below skips it, so release builds remain
+            // unsigned exactly as before.
+            if (hasReleaseKeystore) {
+                storeFile = File(repoRootDir, keystoreProps["storeFile"] as String)
+                storePassword = keystoreProps["storePassword"] as String
+                keyAlias = keystoreProps["keyAlias"] as String
+                keyPassword = keystoreProps["keyPassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -45,6 +71,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (hasReleaseKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

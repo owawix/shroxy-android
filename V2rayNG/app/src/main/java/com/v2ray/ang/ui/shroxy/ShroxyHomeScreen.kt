@@ -1,5 +1,11 @@
 package com.v2ray.ang.ui.shroxy
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -50,6 +56,8 @@ import com.v2ray.ang.ui.main.MainStatus
 import com.v2ray.ang.ui.main.MainUiState
 import com.v2ray.ang.ui.main.MainViewModel
 import com.v2ray.ang.ui.shroxy.components.ShroxyAddServerDropdown
+import com.v2ray.ang.ui.shroxy.components.ShroxyGroupExpandDurationMs
+import com.v2ray.ang.ui.shroxy.components.ShroxyGroupExpandEasing
 import com.v2ray.ang.ui.shroxy.components.ShroxyPingUiState
 import com.v2ray.ang.ui.shroxy.components.ShroxyPowerButton
 import com.v2ray.ang.ui.shroxy.components.ShroxyPowerState
@@ -224,7 +232,37 @@ private fun ShroxyGroupList(
                     },
                     errorCode = group.lastError,
                 )
-                if (expanded) {
+                // Animate content height inside the item so LazyColumn re-measures smoothly
+                // instead of animating item placement. Default AnimatedVisibility behavior on
+                // recomposition after config change: state is derived from `expanded`, so the
+                // card renders at its end state without replaying the animation.
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = expandVertically(
+                        expandFrom = Alignment.Top,
+                        animationSpec = tween(
+                            durationMillis = ShroxyGroupExpandDurationMs,
+                            easing = ShroxyGroupExpandEasing,
+                        ),
+                    ) + fadeIn(
+                        animationSpec = tween(
+                            durationMillis = ShroxyGroupExpandDurationMs,
+                            easing = ShroxyGroupExpandEasing,
+                        ),
+                    ),
+                    exit = shrinkVertically(
+                        shrinkTowards = Alignment.Top,
+                        animationSpec = tween(
+                            durationMillis = ShroxyGroupExpandDurationMs,
+                            easing = ShroxyGroupExpandEasing,
+                        ),
+                    ) + fadeOut(
+                        animationSpec = tween(
+                            durationMillis = ShroxyGroupExpandDurationMs,
+                            easing = ShroxyGroupExpandEasing,
+                        ),
+                    ),
+                ) {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                         groupState.rows.forEachIndexed { index, row ->
                             key(row.guid) {

@@ -1,5 +1,9 @@
 package com.v2ray.ang.ui.shroxy.components
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -13,7 +17,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Speed
@@ -28,9 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -55,6 +60,10 @@ import java.util.Locale
  * overflow actions) plus a traffic info strip. Fully stateless — expansion and overflow-menu
  * visibility are hoisted by the caller.
  */
+// Single motion spec for the group expansion: the server-rows reveal, the chevron rotation
+// and the card's bottom-corner morph all run on the same easing/duration so they stay in sync.
+internal val ShroxyGroupExpandEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+internal const val ShroxyGroupExpandDurationMs = 340
 @Composable
 fun ShroxySubscriptionGroup(
     title: String,
@@ -75,18 +84,27 @@ fun ShroxySubscriptionGroup(
     errorCode: String? = null,
     modifier: Modifier = Modifier,
 ) {
+    val bottomCornerRadius by animateDpAsState(
+        targetValue = if (expanded && hasRows) 0.dp else 16.dp,
+        animationSpec = tween(
+            durationMillis = ShroxyGroupExpandDurationMs,
+            easing = ShroxyGroupExpandEasing,
+        ),
+        label = "groupBottomCorner",
+    )
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         // Expanded with rows: server rows continue below the card, so the bottom edge is
         // square. Collapsed or expanded with no rows (loading / filter no-match): the
-        // traffic strip is the last element, so the bottom stays rounded.
+        // traffic strip is the last element, so the bottom stays rounded. The radius morphs
+        // in sync with the rows reveal.
         shape = RoundedCornerShape(
             topStart = 16.dp,
             topEnd = 16.dp,
-            bottomStart = if (expanded && hasRows) 0.dp else 16.dp,
-            bottomEnd = if (expanded && hasRows) 0.dp else 16.dp,
+            bottomStart = bottomCornerRadius,
+            bottomEnd = bottomCornerRadius,
         ),
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
@@ -185,6 +203,16 @@ private fun GroupHeader(
     val chevronDescription = stringResource(
         if (expanded) R.string.shroxy_group_collapse else R.string.shroxy_group_expand,
     )
+    // Single right-pointing arrow rotated to "down" so the direction morphs smoothly instead
+    // of swapping icons.
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 90f else 0f,
+        animationSpec = tween(
+            durationMillis = ShroxyGroupExpandDurationMs,
+            easing = ShroxyGroupExpandEasing,
+        ),
+        label = "groupChevronRotation",
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -197,10 +225,12 @@ private fun GroupHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = if (expanded) Icons.Filled.KeyboardArrowDown else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = chevronDescription,
             tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier
+                .size(24.dp)
+                .rotate(chevronRotation),
         )
         Column(
             modifier = Modifier

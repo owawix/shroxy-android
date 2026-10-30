@@ -8,11 +8,21 @@ import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
@@ -50,6 +60,35 @@ import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+/** Destinations of the flag-based navigation in [MainActivity.ScreenContent]. */
+internal enum class ShroxyScreen {
+    HOME,
+    SETTINGS,
+    LANGUAGE,
+}
+
+/**
+ * Direction of a slide transition between [ShroxyScreen]s. AnimatedContent only invokes a
+ * transition when the states differ, so a same-screen pair never reaches
+ * [shroxyScreenTransitionDirection]; the function resolves it to [FORWARD] as a benign default.
+ */
+internal enum class ShroxyScreenTransitionDirection {
+    FORWARD,
+    BACKWARD,
+}
+
+internal fun shroxyScreenTransitionDirection(
+    from: ShroxyScreen,
+    to: ShroxyScreen,
+): ShroxyScreenTransitionDirection =
+    if (to.ordinal >= from.ordinal) ShroxyScreenTransitionDirection.FORWARD
+    else ShroxyScreenTransitionDirection.BACKWARD
+
+// Motion tokens for the screen slides: same easing family as ShroxyGroupExpandEasing,
+// shortened to 300ms because a full-screen move reads slower than an in-card expansion.
+internal const val ShroxyScreenTransitionDurationMs = 300
+internal val ShroxyScreenTransitionEasing = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
 
 class MainActivity : HelperBaseComponentActivity() {
 
@@ -98,45 +137,73 @@ class MainActivity : HelperBaseComponentActivity() {
                 else -> moveTaskToBack(false)
             }
         }
-        if (showLanguage) {
-            ShroxyLanguageScreen(
-                onBack = { showLanguage = false },
-                onSelectLanguage = { code -> AppLocaleManager.setApplicationLanguage(code) },
-            )
-            return
+        val destination = when {
+            showSettings && showLanguage -> ShroxyScreen.LANGUAGE
+            showSettings -> ShroxyScreen.SETTINGS
+            else -> ShroxyScreen.HOME
         }
-        if (showSettings) {
-            ShroxySettingsScreen(
-                mainViewModel = mainViewModel,
-                onAction = { mainViewModel.onAction(it) },
-                onBack = { showSettings = false },
-                onOpenLanguage = { showLanguage = true },
-            )
-            return
-        }
-        ShroxyHomeScreen(
-            mainViewModel = mainViewModel,
-            onAction = { action ->
-                when (action) {
-                    MainAction.ToggleService -> handleFabAction()
-                    MainAction.TestCurrentServer -> handleLayoutTestClick()
-                    MainAction.OpenQr,
-                    MainAction.ImportQRcode -> importQRcode()
-                    MainAction.ImportConfigLocal -> importConfigLocal()
-                    is MainAction.ImportManually -> importManually(action.type)
-                    MainAction.RestartService -> LauncherManager.restartServiceOrStart(this, ::requestServiceStart)
-                    MainAction.LocateSelectedServer -> mainViewModel.triggerLocateSelectedServer()
-                    is MainAction.SelectServer -> setSelectServer(action.guid)
-                    is MainAction.EditServer -> editServer(action.guid, action.profile)
-                    is MainAction.ShareClipboard -> shareToClipboard(action.guid)
-                    is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
-                    is MainAction.OpenSubscriptionLink -> openSubscriptionLink(action.url)
-                    else -> mainViewModel.onAction(action)
+        val stateHolder = rememberSaveableStateHolder()
+        AnimatedContent(
+            targetState = destination,
+            transitionSpec = {
+                val moveSpec = tween<IntOffset>(
+                    durationMillis = ShroxyScreenTransitionDurationMs,
+                    easing = ShroxyScreenTransitionEasing,
+                )
+                val fadeSpec = tween<Float>(
+                    durationMillis = ShroxyScreenTransitionDurationMs,
+                    easing = ShroxyScreenTransitionEasing,
+                )
+                if (shroxyScreenTransitionDirection(initialState, targetState) ==
+                    ShroxyScreenTransitionDirection.FORWARD
+                ) {
+                    (slideInHorizontally(moveSpec) { it } + fadeIn(fadeSpec)) togetherWith
+                        (slideOutHorizontally(moveSpec) { -it / 3 } + fadeOut(fadeSpec))
+                } else {
+                    (slideInHorizontally(moveSpec) { -it } + fadeIn(fadeSpec)) togetherWith
+                        (slideOutHorizontally(moveSpec) { it / 3 } + fadeOut(fadeSpec))
                 }
             },
-            onOpenSettings = { showSettings = true },
-            onOpenPurchaseLink = { Utils.openUri(this, AppConfig.SHROXY_PURCHASE_URL) },
-        )
+            label = "ShroxyScreenTransition",
+        ) { screen ->
+            stateHolder.SaveableStateProvider(screen.name) {
+                when (screen) {
+                    ShroxyScreen.HOME -> ShroxyHomeScreen(
+                        mainViewModel = mainViewModel,
+                        onAction = { action ->
+                            when (action) {
+                                MainAction.ToggleService -> handleFabAction()
+                                MainAction.TestCurrentServer -> handleLayoutTestClick()
+                                MainAction.OpenQr,
+                                MainAction.ImportQRcode -> importQRcode()
+                                MainAction.ImportConfigLocal -> importConfigLocal()
+                                is MainAction.ImportManually -> importManually(action.type)
+                                MainAction.RestartService -> LauncherManager.restartServiceOrStart(this@MainActivity, ::requestServiceStart)
+                                MainAction.LocateSelectedServer -> mainViewModel.triggerLocateSelectedServer()
+                                is MainAction.SelectServer -> setSelectServer(action.guid)
+                                is MainAction.EditServer -> editServer(action.guid, action.profile)
+                                is MainAction.ShareClipboard -> shareToClipboard(action.guid)
+                                is MainAction.ShareFullContent -> shareFullContentAsync(action.guid)
+                                is MainAction.OpenSubscriptionLink -> openSubscriptionLink(action.url)
+                                else -> mainViewModel.onAction(action)
+                            }
+                        },
+                        onOpenSettings = { showSettings = true },
+                        onOpenPurchaseLink = { Utils.openUri(this@MainActivity, AppConfig.SHROXY_PURCHASE_URL) },
+                    )
+                    ShroxyScreen.SETTINGS -> ShroxySettingsScreen(
+                        mainViewModel = mainViewModel,
+                        onAction = { mainViewModel.onAction(it) },
+                        onBack = { showSettings = false },
+                        onOpenLanguage = { showLanguage = true },
+                    )
+                    ShroxyScreen.LANGUAGE -> ShroxyLanguageScreen(
+                        onBack = { showLanguage = false },
+                        onSelectLanguage = { code -> AppLocaleManager.setApplicationLanguage(code) },
+                    )
+                }
+            }
+        }
     }
 
     private fun shareToClipboard(guid: String): Boolean =

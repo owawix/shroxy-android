@@ -4,6 +4,7 @@ import android.content.Context
 import com.v2ray.ang.core.CoreConfigManager
 import com.v2ray.ang.core.CoreNativeManager
 import com.v2ray.ang.dto.RealPingEvent
+import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import com.v2ray.ang.extension.isComplexType
 import com.v2ray.ang.extension.isNotNullEmpty
@@ -36,6 +37,37 @@ internal object RealPingExecutionLimiter {
             block()
         }
     }
+}
+
+/** How a single list ping measures [ProfileItem]. */
+internal enum class ListPingRoute {
+    /** Raw TCP handshake against the profile's server:port. */
+    TCP_CONNECT,
+
+    /** Native Xray outbound delay measurement (complex/QUIC-UDP/h3 profiles). */
+    NATIVE_MEASURE,
+}
+
+/**
+ * True when the profile's reachability can be judged by a raw TCP handshake:
+ * simple type, TCP-based protocol (no Hysteria2/WireGuard) and no HTTP/3 ALPN.
+ * The check must mirror the TCP pre-condition in [startRealPing].
+ */
+internal fun tcpPingEligible(profile: ProfileItem): Boolean {
+    return !profile.configType.isComplexType()
+        && profile.configType != EConfigType.HYSTERIA2
+        && profile.configType != EConfigType.WIREGUARD
+        && profile.alpn?.startsWith("h3") != true
+        && profile.server.isNotNullEmpty()
+        && profile.serverPort?.toIntOrNull() != null
+}
+
+/**
+ * Routes a list ping for [profile]. Profiles a TCP handshake cannot judge fall
+ * back to the native measurement so the list test still yields a number.
+ */
+internal fun resolveListPingRoute(profile: ProfileItem): ListPingRoute {
+    return if (tcpPingEligible(profile)) ListPingRoute.TCP_CONNECT else ListPingRoute.NATIVE_MEASURE
 }
 
 /**
@@ -108,13 +140,7 @@ class RealPingWorkerService(
         val retFailure = -1L
 
         val config = MmkvManager.decodeServerConfig(guid) ?: return retFailure
-        if (!config.configType.isComplexType()
-            && config.configType != EConfigType.HYSTERIA2
-            && config.configType != EConfigType.WIREGUARD
-            && config.alpn?.startsWith("h3") != true
-            && config.server.isNotNullEmpty()
-            && config.serverPort?.toIntOrNull() != null
-        ) {
+        if (tcpPingEligible(config)) {
             val url = config.server.orEmpty()
             val port = config.serverPort.orEmpty().toInt()
             val tcpTime = SpeedtestManager.socketConnectTime(url, port, 1000)
@@ -132,24 +158,25 @@ class RealPingWorkerService(
         }
     }
 
-    private fun startTcping(guid: String): Long {
+    private suspend fun startTcping(guid: String): Long {
         val retFailure = -1L
 
         val config = MmkvManager.decodeServerConfig(guid) ?: return retFailure
-        if (!config.configType.isComplexType()
-            && config.configType != EConfigType.HYSTERIA2
-            && config.configType != EConfigType.WIREGUARD
-            && config.alpn?.split(',')?.all { it.trim().startsWith("h3") } != true
-            && config.server.isNotNullEmpty()
-            && config.serverPort?.toIntOrNull() != null
-        ) {
+        if (resolveListPingRoute(config) == ListPingRoute.TCP_CONNECT) {
             val url = config.server.orEmpty()
             val port = config.serverPort.orEmpty().toInt()
-            val tcpTime = SpeedtestManager.socketConnectTime(url, port, 1000)
-
-            return tcpTime
+            return SpeedtestManager.socketConnectTime(url, port, 1000)
         }
 
-        return retFailure
+        // The profile is not judgeable by a TCP handshake (complex/Hysteria2/WireGuard/h3):
+        // measure through the same native Xray path as startRealPing, with the same limiter
+        // policy, so the list test still yields a number instead of -1.
+        val configResult = CoreConfigManager.getV2rayConfig4Speedtest(context, guid)
+        if (!configResult.status) {
+            return retFailure
+        }
+        return RealPingExecutionLimiter.run(config.configType) {
+            CoreNativeManager.measureOutboundDelay(configResult.content, SettingsManager.getDelayTestUrl())
+        }
     }
 }

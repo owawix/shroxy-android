@@ -48,6 +48,11 @@ object MmkvManager {
     private const val KEY_GEO_LAST_CHECKED_AT = "pref_shroxy_geo_last_checked_at"
     private const val KEY_GEO_LAST_ETAG = "pref_shroxy_geo_last_etag"
     private const val KEY_GEO_LAST_TAG = "pref_shroxy_geo_last_tag"
+    private const val KEY_GEO_IP_LAST_SUCCESS_AT = "pref_shroxy_geo_ip_last_success_at"
+    private const val KEY_GEO_SITE_LAST_SUCCESS_AT = "pref_shroxy_geo_site_last_success_at"
+    private const val KEY_GEO_IP_STATUS_OK = "pref_shroxy_geo_ip_status_ok"
+    private const val KEY_GEO_SITE_STATUS_OK = "pref_shroxy_geo_site_status_ok"
+    private const val KEY_GEO_SCHEDULE_VERSION = "pref_shroxy_geo_schedule_version"
 
     private val recoveryHandler = object : MMKVHandler {
         override fun onMMKVCRCCheckFail(mmapID: String) =
@@ -981,6 +986,96 @@ object MmkvManager {
      */
     fun encodeGeoLastTag(value: String?) {
         mainStorage.encode(KEY_GEO_LAST_TAG, value)
+    }
+
+    /**
+     * Decodes the success timestamp of the last geoip.dat installation.
+     *
+     * @return Epoch millis of the last successful geoip.dat install, 0 if never installed.
+     */
+    fun decodeGeoIpLastSuccessAt(): Long {
+        return mainStorage.decodeLong(KEY_GEO_IP_LAST_SUCCESS_AT, 0L)
+    }
+
+    /**
+     * Encodes the success timestamp of the last geoip.dat installation.
+     *
+     * @param value Epoch millis of the last successful geoip.dat install.
+     */
+    fun encodeGeoIpLastSuccessAt(value: Long) {
+        mainStorage.encode(KEY_GEO_IP_LAST_SUCCESS_AT, value)
+    }
+
+    /**
+     * Decodes the success timestamp of the last geosite.dat installation.
+     *
+     * @return Epoch millis of the last successful geosite.dat install, 0 if never installed.
+     */
+    fun decodeGeoSiteLastSuccessAt(): Long {
+        return mainStorage.decodeLong(KEY_GEO_SITE_LAST_SUCCESS_AT, 0L)
+    }
+
+    /**
+     * Encodes the success timestamp of the last geosite.dat installation.
+     *
+     * @param value Epoch millis of the last successful geosite.dat install.
+     */
+    fun encodeGeoSiteLastSuccessAt(value: Long) {
+        mainStorage.encode(KEY_GEO_SITE_LAST_SUCCESS_AT, value)
+    }
+
+    /**
+     * Decodes the last geoip.dat update status.
+     *
+     * @return True if the last geoip.dat update attempt succeeded.
+     */
+    fun decodeGeoIpStatusOk(): Boolean {
+        return mainStorage.decodeBool(KEY_GEO_IP_STATUS_OK, false)
+    }
+
+    /**
+     * Encodes the last geoip.dat update status.
+     *
+     * @param value True if the last geoip.dat update attempt succeeded.
+     */
+    fun encodeGeoIpStatusOk(value: Boolean) {
+        mainStorage.encode(KEY_GEO_IP_STATUS_OK, value)
+    }
+
+    /**
+     * Decodes the last geosite.dat update status.
+     *
+     * @return True if the last geosite.dat update attempt succeeded.
+     */
+    fun decodeGeoSiteStatusOk(): Boolean {
+        return mainStorage.decodeBool(KEY_GEO_SITE_STATUS_OK, false)
+    }
+
+    /**
+     * Encodes the last geosite.dat update status.
+     *
+     * @param value True if the last geosite.dat update attempt succeeded.
+     */
+    fun encodeGeoSiteStatusOk(value: Boolean) {
+        mainStorage.encode(KEY_GEO_SITE_STATUS_OK, value)
+    }
+
+    /**
+     * Decodes the geo update schedule version.
+     *
+     * @return The stored schedule version, 0 if never recorded.
+     */
+    fun decodeGeoScheduleVersion(): Int {
+        return mainStorage.decodeInt(KEY_GEO_SCHEDULE_VERSION, 0)
+    }
+
+    /**
+     * Encodes the geo update schedule version.
+     *
+     * @param value The schedule version to persist.
+     */
+    fun encodeGeoScheduleVersion(value: Int) {
+        mainStorage.encode(KEY_GEO_SCHEDULE_VERSION, value)
     }
 
     //endregion

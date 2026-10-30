@@ -353,6 +353,15 @@ object SettingsManager {
                         }
                     }
                     LogUtil.i(AppConfig.TAG, "Copied from apk assets folder to ${target.absolutePath}")
+                    // Seed the per-file geo update status only on the actual first copy;
+                    // later starts with the file present must not overwrite it.
+                    if (it == AppConfig.GEOIP_DAT) {
+                        MmkvManager.encodeGeoIpLastSuccessAt(System.currentTimeMillis())
+                        MmkvManager.encodeGeoIpStatusOk(true)
+                    } else if (it == AppConfig.GEOSITE_DAT) {
+                        MmkvManager.encodeGeoSiteLastSuccessAt(System.currentTimeMillis())
+                        MmkvManager.encodeGeoSiteStatusOk(true)
+                    }
                 }
         } catch (e: Exception) {
             LogUtil.e(ANG_PACKAGE, "asset copy failed", e)

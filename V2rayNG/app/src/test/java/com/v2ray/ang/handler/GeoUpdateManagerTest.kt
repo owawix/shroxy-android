@@ -19,6 +19,8 @@ import org.mockito.kotlin.whenever
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 class GeoUpdateManagerTest {
 
@@ -27,6 +29,7 @@ class GeoUpdateManagerTest {
 
     private val mainValues = mutableMapOf<String, String>()
     private val mainLongValues = mutableMapOf<String, Long>()
+    private val mainBoolValues = mutableMapOf<String, Boolean>()
     private val settingsValues = mutableMapOf<String, String>()
     private val settingsBoolValues = mutableMapOf<String, Boolean>()
 
@@ -39,12 +42,16 @@ class GeoUpdateManagerTest {
     fun prepareStorage() {
         mainValues.clear()
         mainLongValues.clear()
+        mainBoolValues.clear()
 
         reset(main)
         whenever(main.decodeString(any())).thenAnswer { mainValues[it.getArgument<String>(0)] }
         whenever(main.allKeys()).thenAnswer { mainValues.keys.toTypedArray() }
         whenever(main.decodeLong(any<String>(), any<Long>())).thenAnswer {
             mainLongValues[it.getArgument<String>(0)] ?: it.getArgument<Long>(1)
+        }
+        whenever(main.decodeBool(any<String>(), any<Boolean>())).thenAnswer {
+            mainBoolValues[it.getArgument<String>(0)] ?: it.getArgument<Boolean>(1)
         }
         whenever(main.encode(any<String>(), any<String>())).thenAnswer {
             val value = it.getArgument<String?>(1)
@@ -57,6 +64,10 @@ class GeoUpdateManagerTest {
         }
         whenever(main.encode(any<String>(), any<Long>())).thenAnswer {
             mainLongValues[it.getArgument(0)] = it.getArgument(1)
+            true
+        }
+        whenever(main.encode(any<String>(), any<Boolean>())).thenAnswer {
+            mainBoolValues[it.getArgument(0)] = it.getArgument(1)
             true
         }
 
@@ -217,6 +228,110 @@ class GeoUpdateManagerTest {
         assertEquals(listOf<String?>("etag-1", "etag-1"), downloader.releaseRequests)
         assertEquals("etag-2", MmkvManager.decodeGeoLastETag())
         assertEquals(FIXED_TIME, MmkvManager.decodeGeoLastCheckedAt())
+    }
+
+    @Test
+    fun `updated install records success time and ok status for both files`() = runBlocking {
+        MmkvManager.encodeGeoLastTag("v20240101")
+        writeOldFiles()
+
+        downloader.enqueueRelease(tag = "v20240601", eTag = "etag-2")
+        downloader.enqueueAsset("geoip.dat", "new geoip payload".toByteArray())
+        downloader.enqueueAsset("geosite.dat", "new geosite payload".toByteArray())
+
+        val result = manager().checkAndUpdate()
+
+        assertEquals(GeoUpdateResult.Updated("v20240601"), result)
+        assertEquals(FIXED_TIME, MmkvManager.decodeGeoIpLastSuccessAt())
+        assertEquals(FIXED_TIME, MmkvManager.decodeGeoSiteLastSuccessAt())
+        assertTrue(MmkvManager.decodeGeoIpStatusOk())
+        assertTrue(MmkvManager.decodeGeoSiteStatusOk())
+    }
+
+    @Test
+    fun `failed update marks both files not ok and keeps success times`() = runBlocking {
+        MmkvManager.encodeGeoLastTag("v20240101")
+        MmkvManager.encodeGeoIpLastSuccessAt(1000L)
+        MmkvManager.encodeGeoSiteLastSuccessAt(2000L)
+        MmkvManager.encodeGeoIpStatusOk(true)
+        MmkvManager.encodeGeoSiteStatusOk(true)
+        writeOldFiles()
+
+        downloader.enqueueRelease(tag = "v20240601", eTag = "etag-2")
+        downloader.enqueueAssetWithBadSum("geoip.dat", "tampered payload".toByteArray())
+
+        val result = manager().checkAndUpdate()
+
+        assertTrue(result is GeoUpdateResult.Failed)
+        assertFalse(MmkvManager.decodeGeoIpStatusOk())
+        assertFalse(MmkvManager.decodeGeoSiteStatusOk())
+        // A failed run must not move the last known-good install times.
+        assertEquals(1000L, MmkvManager.decodeGeoIpLastSuccessAt())
+        assertEquals(2000L, MmkvManager.decodeGeoSiteLastSuccessAt())
+    }
+
+    @Test
+    fun `partial install keeps ok status of the installed file only`() = runBlocking {
+        MmkvManager.encodeGeoLastTag("v20240101")
+        writeOldFiles()
+
+        downloader.enqueueRelease(tag = "v20240601", eTag = "etag-2")
+        downloader.enqueueAsset("geoip.dat", "new geoip payload".toByteArray())
+        downloader.enqueueAssetWithBadSum("geosite.dat", "tampered payload".toByteArray())
+
+        val result = manager().checkAndUpdate()
+
+        assertTrue(result is GeoUpdateResult.Failed)
+        assertTrue(MmkvManager.decodeGeoIpStatusOk())
+        assertEquals(FIXED_TIME, MmkvManager.decodeGeoIpLastSuccessAt())
+        assertFalse(MmkvManager.decodeGeoSiteStatusOk())
+        assertEquals(0L, MmkvManager.decodeGeoSiteLastSuccessAt())
+    }
+
+    @Test
+    fun `up to date leaves per-file status untouched`() = runBlocking {
+        MmkvManager.encodeGeoLastETag("etag-1")
+        MmkvManager.encodeGeoIpLastSuccessAt(1000L)
+        MmkvManager.encodeGeoIpStatusOk(true)
+        downloader.releaseResponse = GeoReleaseResponse(304, "etag-2", null)
+
+        val result = manager().checkAndUpdate()
+
+        assertEquals(GeoUpdateResult.UpToDate, result)
+        assertTrue(MmkvManager.decodeGeoIpStatusOk())
+        assertEquals(1000L, MmkvManager.decodeGeoIpLastSuccessAt())
+    }
+
+    @Test
+    fun `footerState decodes stored per-file status`() {
+        MmkvManager.encodeGeoIpLastSuccessAt(111L)
+        MmkvManager.encodeGeoIpStatusOk(true)
+        MmkvManager.encodeGeoSiteLastSuccessAt(222L)
+        MmkvManager.encodeGeoSiteStatusOk(false)
+
+        assertEquals(
+            listOf(
+                GeoFileStatus("geoip.dat", 111L, true),
+                GeoFileStatus("geosite.dat", 222L, false),
+            ),
+            GeoUpdateManager.footerState(),
+        )
+    }
+
+    @Test
+    fun `millisUntilNextDaily targets the next 01_37 strictly after now`() {
+        val zone = ZoneOffset.UTC
+        fun at(hour: Int, minute: Int): Long =
+            LocalDateTime.of(2026, 10, 30, hour, minute).toInstant(zone).toEpochMilli()
+
+        // 01:00 -> next 01:37 same day.
+        assertEquals(37 * 60_000L, GeoUpdateManager.millisUntilNextDaily(at(1, 0), zone))
+        // 02:00 -> next 01:37 next day.
+        assertEquals((23 * 60 + 37) * 60_000L, GeoUpdateManager.millisUntilNextDaily(at(2, 0), zone))
+        // Exactly 01:37:00.000 is already "there": strictly-after rolls a full day.
+        assertEquals(24 * 60 * 60_000L, GeoUpdateManager.millisUntilNextDaily(at(1, 37), zone))
+        // 23:59 -> 1h38m past midnight.
+        assertEquals((60 + 38) * 60_000L, GeoUpdateManager.millisUntilNextDaily(at(23, 59), zone))
     }
 
     @Test

@@ -25,4 +25,15 @@ class GeoUpdateWorkerTest {
         assertFalse(GeoUpdateWorker.isCheckDue(now, now))
         assertFalse(GeoUpdateWorker.isCheckDue(now - GeoUpdateWorker.CHECK_INTERVAL_MILLIS + 1, now))
     }
+
+    @Test
+    fun shouldRescheduleWhenStoredVersionBelowCurrent() {
+        assertTrue(GeoUpdateWorker.shouldReschedule(0))
+        assertTrue(GeoUpdateWorker.shouldReschedule(1))
+    }
+
+    @Test
+    fun shouldNotRescheduleWhenStoredVersionCurrent() {
+        assertFalse(GeoUpdateWorker.shouldReschedule(2))
+    }
 }

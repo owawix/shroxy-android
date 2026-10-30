@@ -12,6 +12,8 @@ import okhttp3.Request
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /**
@@ -36,6 +38,15 @@ sealed interface GeoUpdateResult {
  * @property body Response body, null for 304.
  */
 data class GeoReleaseResponse(val statusCode: Int, val eTag: String?, val body: String?)
+
+/**
+ * Footer state of one installed geo file.
+ *
+ * @property fileName Installed file name, e.g. "geoip.dat".
+ * @property successAt Epoch millis of the last successful install, 0 if never installed.
+ * @property ok True when the last update attempt for the file succeeded.
+ */
+data class GeoFileStatus(val fileName: String, val successAt: Long, val ok: Boolean)
 
 /**
  * Injectable network boundary for [GeoUpdateManager]. The production implementation is
@@ -130,7 +141,9 @@ class OkHttpGeoUpdateDownloader(
  * `<name>` + `<name>.sha256sum` pair, sha256 verification and an atomic
  * `<name>_temp` + rename swap. Any failure keeps the previously installed files,
  * deletes the temp files and is reported as [GeoUpdateResult.Failed]; nothing is
- * thrown out of [checkAndUpdate].
+ * thrown out of [checkAndUpdate]. A failed run marks the per-file update status
+ * of every file not successfully installed in the same run; a 304 leaves the
+ * per-file status untouched.
  *
  * @property assetDir Directory the geo files are installed into (context.getDir(AppConfig.DIR_ASSETS)).
  * @property downloader Injectable network boundary.
@@ -150,16 +163,23 @@ class GeoUpdateManager(
      * @return UpToDate / Updated(tag) / Failed(reason); never throws.
      */
     suspend fun checkAndUpdate(): GeoUpdateResult = withContext(Dispatchers.IO) {
-        try {
-            checkInternal()
+        val installedThisRun = mutableSetOf<String>()
+        val result = try {
+            checkInternal(installedThisRun)
         } catch (e: Exception) {
             cleanupTempFiles()
             LogUtil.e(TAG, "Geo update failed: release=${MmkvManager.decodeGeoLastTag()}", e)
             GeoUpdateResult.Failed(e.message ?: e.javaClass.simpleName)
         }
+        if (result is GeoUpdateResult.Failed) {
+            // A failed run marks the files that were not installed in this run;
+            // successAt stays untouched so the footer keeps the last good time.
+            markFilesFailedExcept(installedThisRun)
+        }
+        result
     }
 
-    private suspend fun checkInternal(): GeoUpdateResult {
+    private suspend fun checkInternal(installedThisRun: MutableSet<String>): GeoUpdateResult {
         val storedETag = MmkvManager.decodeGeoLastETag()
         val release = try {
             downloader.fetchLatestRelease(storedETag)
@@ -191,6 +211,7 @@ class GeoUpdateManager(
         try {
             for (name in geoFileNames) {
                 installFile(name, tag)
+                installedThisRun += name
             }
         } catch (e: Exception) {
             LogUtil.e(TAG, "Geo update: install failed, tag=$tag", e)
@@ -220,6 +241,7 @@ class GeoUpdateManager(
             if (!targetTemp.renameTo(target)) {
                 throw IOException("Failed to rename ${targetTemp.name} to ${target.name}")
             }
+            recordInstallSuccess(name)
         } finally {
             if (targetTemp.exists()) targetTemp.delete()
             if (sumTemp.exists()) sumTemp.delete()
@@ -236,11 +258,71 @@ class GeoUpdateManager(
         }
     }
 
+    /** Records a successful install of [name]: success time and per-file ok status. */
+    private fun recordInstallSuccess(name: String) {
+        when (name) {
+            GEOIP_FILE_NAME -> {
+                MmkvManager.encodeGeoIpLastSuccessAt(clock())
+                MmkvManager.encodeGeoIpStatusOk(true)
+            }
+
+            GEOSITE_FILE_NAME -> {
+                MmkvManager.encodeGeoSiteLastSuccessAt(clock())
+                MmkvManager.encodeGeoSiteStatusOk(true)
+            }
+        }
+    }
+
+    /** Marks every geo file not in [installed] as failed; success times stay untouched. */
+    private fun markFilesFailedExcept(installed: Set<String>) {
+        if (GEOIP_FILE_NAME !in installed) MmkvManager.encodeGeoIpStatusOk(false)
+        if (GEOSITE_FILE_NAME !in installed) MmkvManager.encodeGeoSiteStatusOk(false)
+    }
+
     companion object {
         const val LATEST_RELEASE_URL =
             "https://api.github.com/repos/Loyalsoldier/v2ray-rules-dat/releases/latest"
 
-        val DEFAULT_GEO_FILE_NAMES = listOf("geoip.dat", "geosite.dat")
+        private const val GEOIP_FILE_NAME = "geoip.dat"
+        private const val GEOSITE_FILE_NAME = "geosite.dat"
+
+        val DEFAULT_GEO_FILE_NAMES = listOf(GEOIP_FILE_NAME, GEOSITE_FILE_NAME)
+
+        /**
+         * Current per-file footer state decoded from persistence; the order matches
+         * [DEFAULT_GEO_FILE_NAMES].
+         */
+        fun footerState(): List<GeoFileStatus> = listOf(
+            GeoFileStatus(
+                GEOIP_FILE_NAME,
+                MmkvManager.decodeGeoIpLastSuccessAt(),
+                MmkvManager.decodeGeoIpStatusOk()
+            ),
+            GeoFileStatus(
+                GEOSITE_FILE_NAME,
+                MmkvManager.decodeGeoSiteLastSuccessAt(),
+                MmkvManager.decodeGeoSiteStatusOk()
+            ),
+        )
+
+        /**
+         * Millis until the next occurrence of [hour]:[minute] in [zone], strictly after
+         * [nowMillis]; at exactly the target time this returns a full day. Pure function
+         * anchoring the daily WorkManager schedule.
+         */
+        internal fun millisUntilNextDaily(
+            nowMillis: Long,
+            zone: ZoneId,
+            hour: Int = 1,
+            minute: Int = 37
+        ): Long {
+            val now = Instant.ofEpochMilli(nowMillis).atZone(zone)
+            var next = now.toLocalDate().atTime(hour, minute)
+            if (!next.atZone(zone).toInstant().isAfter(now.toInstant())) {
+                next = next.plusDays(1)
+            }
+            return next.atZone(zone).toInstant().toEpochMilli() - nowMillis
+        }
 
         /**
          * Creates a manager rooted at the app's user asset directory.

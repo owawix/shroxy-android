@@ -15,6 +15,7 @@ import com.v2ray.ang.handler.GeoUpdateManager
 import com.v2ray.ang.handler.GeoUpdateResult
 import com.v2ray.ang.handler.MmkvManager
 import com.v2ray.ang.util.LogUtil
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /**
@@ -62,30 +63,73 @@ class GeoUpdateWorker(
         val CHECK_INTERVAL_MILLIS: Long = TimeUnit.HOURS.toMillis(CHECK_INTERVAL_HOURS)
 
         /**
+         * Current schedule version. Version 2 anchored the periodic task to the next
+         * local 01:37; lower versions carry the legacy "next app start" phase.
+         */
+        internal const val SCHEDULE_VERSION = 2
+
+        /**
          * A check is due when it never ran or the last one is older than the interval.
          */
         fun isCheckDue(lastCheckedAt: Long, now: Long): Boolean =
             lastCheckedAt <= 0L || now - lastCheckedAt >= CHECK_INTERVAL_MILLIS
 
         /**
-         * Ensures the periodic 24h task exists (KEEP policy) and, when the last check is
-         * stale or absent, enqueues a one-time catch-up so the first update happens soon
-         * after install. Safe to call on every app start and UI launch.
+         * True when the stored schedule version predates the current 01:37-anchored
+         * schedule, so the periodic task must be re-enqueued with a fresh initial delay.
+         */
+        internal fun shouldReschedule(storedVersion: Int): Boolean =
+            storedVersion < SCHEDULE_VERSION
+
+        /**
+         * Ensures the periodic 24h task exists and, when the last check is stale or
+         * absent, enqueues a one-time catch-up so the first update happens soon after
+         * install. Safe to call on every app start and UI launch.
+         *
+         * On the first sync after the schedule-version migration the legacy periodic
+         * task is cancelled and re-enqueued (REPLACE) with an initial delay pointing
+         * at the next local 01:37; persisting the version keeps every later sync on
+         * the KEEP path so the standing 24h cycle is never reset by an app restart.
          */
         fun sync(context: Context) {
-            val periodic = PeriodicWorkRequestBuilder<GeoUpdateWorker>(
-                CHECK_INTERVAL_HOURS,
-                TimeUnit.HOURS
-            )
-                .setConstraints(networkConstraints())
-                .build()
-            RemoteWorkManager.getInstance(context)
-                .enqueueUniquePeriodicWork(
+            val remoteWorkManager = RemoteWorkManager.getInstance(context)
+            if (shouldReschedule(MmkvManager.decodeGeoScheduleVersion())) {
+                val initialDelay = GeoUpdateManager.millisUntilNextDaily(
+                    System.currentTimeMillis(),
+                    ZoneId.systemDefault()
+                )
+                remoteWorkManager.cancelUniqueWork(PERIODIC_WORK_NAME)
+                val periodic = PeriodicWorkRequestBuilder<GeoUpdateWorker>(
+                    CHECK_INTERVAL_HOURS,
+                    TimeUnit.HOURS
+                )
+                    .setConstraints(networkConstraints())
+                    .setInitialDelay(initialDelay, TimeUnit.MILLISECONDS)
+                    .build()
+                remoteWorkManager.enqueueUniquePeriodicWork(
+                    PERIODIC_WORK_NAME,
+                    ExistingPeriodicWorkPolicy.REPLACE,
+                    periodic
+                )
+                MmkvManager.encodeGeoScheduleVersion(SCHEDULE_VERSION)
+                LogUtil.i(
+                    TAG,
+                    "GeoUpdateWorker: periodic geo update rescheduled to 01:37 anchor (initialDelay=$initialDelay ms)"
+                )
+            } else {
+                val periodic = PeriodicWorkRequestBuilder<GeoUpdateWorker>(
+                    CHECK_INTERVAL_HOURS,
+                    TimeUnit.HOURS
+                )
+                    .setConstraints(networkConstraints())
+                    .build()
+                remoteWorkManager.enqueueUniquePeriodicWork(
                     PERIODIC_WORK_NAME,
                     ExistingPeriodicWorkPolicy.KEEP,
                     periodic
                 )
-            LogUtil.i(TAG, "GeoUpdateWorker: periodic geo update ensured")
+                LogUtil.i(TAG, "GeoUpdateWorker: periodic geo update ensured")
+            }
 
             if (isCheckDue(MmkvManager.decodeGeoLastCheckedAt(), System.currentTimeMillis())) {
                 val catchUp = OneTimeWorkRequestBuilder<GeoUpdateWorker>()

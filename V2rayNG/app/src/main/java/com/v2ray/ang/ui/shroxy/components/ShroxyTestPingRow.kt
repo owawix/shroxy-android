@@ -58,7 +58,11 @@ fun ShroxyTestPingRow(
         Row(
             modifier = Modifier
                 .heightIn(min = 48.dp)
-                .clickable(onClick = onTestClick)
+                .clickable(
+                    interactionSource = null,
+                    indication = null,
+                    onClick = onTestClick,
+                )
                 .semantics(mergeDescendants = true) {},
             verticalAlignment = Alignment.CenterVertically,
         ) {

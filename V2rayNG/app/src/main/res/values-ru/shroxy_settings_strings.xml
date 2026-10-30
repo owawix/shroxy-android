@@ -9,4 +9,9 @@
     <string name="routing_subtitle">Российские сервисы будут доступны напрямую, а зарубежные будут идти через прокси.</string>
     <string name="routing_switch_on">Включено</string>
     <string name="routing_switch_off">Выключено</string>
+    <!-- Geo update footer -->
+    <string name="geo_footer_line">%1$s: %2$s · %3$s</string>
+    <string name="geo_status_success">успех</string>
+    <string name="geo_status_error">ошибка</string>
+    <string name="geo_status_never">ещё не обновлялся</string>
 </resources>

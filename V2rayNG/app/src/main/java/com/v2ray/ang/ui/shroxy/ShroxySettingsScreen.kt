@@ -20,20 +20,30 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.v2ray.ang.R
+import com.v2ray.ang.handler.GeoUpdateManager
 import com.v2ray.ang.ui.compose.AppTheme
 import com.v2ray.ang.ui.main.MainAction
 import com.v2ray.ang.ui.main.MainViewModel
 import com.v2ray.ang.ui.shroxy.components.ShroxyLanguageSettingRow
 import com.v2ray.ang.ui.shroxy.components.ShroxyRoutingSettingRow
+import com.v2ray.ang.util.Utils
 
 /**
  * Shroxy settings screen (spec: settingsScreen.png): floating back button on layer0,
@@ -101,6 +111,47 @@ fun ShroxySettingsScreen(
                         subtitle = stringResource(R.string.routing_subtitle),
                         checked = uiState.bypassRu,
                         onCheckedChange = { onAction(MainAction.SetBypassRu(it)) },
+                    )
+                }
+            }
+            // Muted geo-update footer: re-read on ON_RESUME so background worker
+            // updates become visible when returning to this screen; MMKV decode
+            // is a light synchronous read, no coroutine scope needed.
+            val lifecycleOwner = LocalLifecycleOwner.current
+            var geoFooterState by remember { mutableStateOf(GeoUpdateManager.footerState()) }
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        geoFooterState = GeoUpdateManager.footerState()
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.Start,
+            ) {
+                geoFooterState.forEach { status ->
+                    Text(
+                        text = if (status.successAt <= 0L) {
+                            "${status.fileName}: ${stringResource(R.string.geo_status_never)}"
+                        } else {
+                            val timeText = Utils.formatTimestamp(
+                                status.successAt,
+                                "dd/MM/yy HH:mm",
+                                LocalConfiguration.current.locales.get(0),
+                            )
+                            stringResource(
+                                R.string.geo_footer_line,
+                                status.fileName,
+                                timeText,
+                                stringResource(if (status.ok) R.string.geo_status_success else R.string.geo_status_error),
+                            )
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

@@ -79,16 +79,29 @@ object MmkvManager {
     private val subStorage by lazy { MMKV.mmkvWithID(ID_SUB, MMKV.MULTI_PROCESS_MODE) }
     private val settingsStorage by lazy { MMKV.mmkvWithID(ID_SETTING, MMKV.MULTI_PROCESS_MODE) }
 
+    // JVM unit tests run without the MMKV native library, so the cross-process lock
+    // (an unmockable native method) would throw UnsatisfiedLinkError there;
+    // MmkvTestStorage substitutes no-op seams for the whole JVM run. Production always
+    // takes the real native lock. Remove the seams only with the JVM MMKV test harness.
+    internal var acquireProfileIndexLock: () -> Unit = { mainStorage.lock() }
+    internal var releaseProfileIndexLock: () -> Unit = { mainStorage.unlock() }
+
     private inline fun <T> withProfileIndexLock(block: () -> T): T {
         return synchronized(mainStorage) {
-            mainStorage.lock()
+            acquireProfileIndexLock()
             try {
                 block()
             } finally {
-                mainStorage.unlock()
+                releaseProfileIndexLock()
             }
         }
     }
+
+    // Same JVM-native rationale as the lock seams above: removeValuesForKeys is a
+    // native method and cannot execute in JVM unit tests. Production always removes
+    // payloads for real.
+    internal var removeProfilePayloadsHandler: (Collection<String>) -> Unit =
+        { removeProfilePayloads(it) }
 
     private fun removeProfilePayloads(guids: Collection<String>) {
         if (guids.isEmpty()) return
@@ -366,7 +379,16 @@ object MmkvManager {
                 persistServerList(serverList, subscriptionId),
                 "Failed to publish profile index",
             )
-            replacementSelection?.let { guid ->
+            val selectedGuid = when (val match = replacementSelection) {
+                is ProfileReplacement.ReplacementMatch.Matched -> match.guid
+                // No previous selection or the replaced one has no rematch: select the top
+                // row of the published batch (first payload line), not the bottom one.
+                ProfileReplacement.ReplacementMatch.NoMatch ->
+                    serverList.first { guid -> profiles.containsKey(guid) }
+                // The current selection lives outside this batch: leave it untouched.
+                ProfileReplacement.ReplacementMatch.KeepCurrent -> null
+            }
+            selectedGuid?.let { guid ->
                 requireStorageWrite(
                     mainStorage.encode(KEY_SELECTED_SERVER, guid),
                     "Failed to update selected profile",
@@ -374,7 +396,7 @@ object MmkvManager {
             }
             if (replacedServers.isEmpty()) return@withProfileIndexLock
 
-            val protectedServer = replacementSelection ?: previousSelection
+            val protectedServer = selectedGuid ?: previousSelection
             val referencedByOtherGroups = decodeServersReferencedByOtherGroups(subscriptionId)
             val removablePayloads = ProfileReplacement.findRemovablePayloads(
                 replacedServers = replacedServers,
@@ -382,7 +404,7 @@ object MmkvManager {
                 protectedServer = protectedServer,
                 serversReferencedByOtherGroups = referencedByOtherGroups,
             )
-            removeProfilePayloads(removablePayloads)
+            removeProfilePayloadsHandler(removablePayloads)
         }
     }
 

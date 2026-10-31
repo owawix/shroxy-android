@@ -3,7 +3,6 @@ package com.v2ray.ang.handler
 import com.v2ray.ang.dto.entities.ProfileItem
 import com.v2ray.ang.enums.EConfigType
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class ProfileReplacementTest {
@@ -26,7 +25,7 @@ class ProfileReplacementTest {
             ),
         )
 
-        assertEquals("full", result)
+        assertEquals(ProfileReplacement.ReplacementMatch.Matched("full"), result)
     }
 
     @Test
@@ -42,7 +41,7 @@ class ProfileReplacementTest {
             selectedProfile = profile(remarks = "selected", server = "host"),
         )
 
-        assertEquals("remarks", result)
+        assertEquals(ProfileReplacement.ReplacementMatch.Matched("remarks"), result)
     }
 
     @Test
@@ -58,11 +57,11 @@ class ProfileReplacementTest {
             selectedProfile = profile(server = "HOST", port = "443", password = "secret"),
         )
 
-        assertEquals("endpoint", result)
+        assertEquals(ProfileReplacement.ReplacementMatch.Matched("endpoint"), result)
     }
 
     @Test
-    fun `falls back to the first replacement profile`() {
+    fun `signals no match when nothing matches the replaced selection`() {
         val profiles = linkedMapOf(
             "first" to profile(server = "first"),
             "second" to profile(server = "second"),
@@ -74,11 +73,11 @@ class ProfileReplacementTest {
             selectedProfile = profile(server = "unmatched"),
         )
 
-        assertEquals("first", result)
+        assertEquals(ProfileReplacement.ReplacementMatch.NoMatch, result)
     }
 
     @Test
-    fun `selects the first profile when there is no current selection`() {
+    fun `signals no match when there is no current selection`() {
         val result = ProfileReplacement.findSelectedReplacement(
             profiles = linkedMapOf(
                 "first" to profile(server = "first"),
@@ -88,7 +87,7 @@ class ProfileReplacementTest {
             selectedProfile = null,
         )
 
-        assertEquals("first", result)
+        assertEquals(ProfileReplacement.ReplacementMatch.NoMatch, result)
     }
 
     @Test
@@ -99,7 +98,7 @@ class ProfileReplacementTest {
             selectedProfile = null,
         )
 
-        assertNull(result)
+        assertEquals(ProfileReplacement.ReplacementMatch.KeepCurrent, result)
     }
 
     @Test

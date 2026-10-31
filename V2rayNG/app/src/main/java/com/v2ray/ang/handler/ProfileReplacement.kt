@@ -5,17 +5,40 @@ import com.v2ray.ang.dto.entities.ProfileItem
 internal object ProfileReplacement {
 
     /**
+     * Outcome of the selection search over a replacement batch.
+     */
+    sealed class ReplacementMatch {
+        /** A batch profile was rematched to the replaced selection; it becomes selected. */
+        data class Matched(val guid: String) : ReplacementMatch()
+
+        /**
+         * The store has no current selection, or the replaced selection has no counterpart
+         * in the batch. The caller selects the top row of the published batch; no GUID is
+         * guessed here.
+         */
+        object NoMatch : ReplacementMatch()
+
+        /** The current selection lives outside the replaced batch; it stays untouched. */
+        object KeepCurrent : ReplacementMatch()
+    }
+
+    /**
      * Finds the profile that should become selected after publishing a replacement batch.
-     * The first profile becomes selected when the store has no current selection.
+     *
+     * [ReplacementMatch.Matched] carries the batch GUID rematched to the replaced selection.
+     * [ReplacementMatch.NoMatch] signals that the previous selection yields no GUID (no
+     * selection at all, or the replaced one has no counterpart), so the caller must select
+     * the top row of the published batch. [ReplacementMatch.KeepCurrent] means the current
+     * selection is outside this batch and must not be changed.
      */
     fun findSelectedReplacement(
         profiles: Map<String, ProfileItem>,
         currentSelection: String?,
         selectedProfile: ProfileItem?,
-    ): String? {
-        if (profiles.isEmpty()) return null
-        if (currentSelection.isNullOrBlank()) return profiles.keys.first()
-        if (selectedProfile == null) return null
+    ): ReplacementMatch {
+        if (profiles.isEmpty()) return ReplacementMatch.NoMatch
+        if (currentSelection.isNullOrBlank()) return ReplacementMatch.NoMatch
+        if (selectedProfile == null) return ReplacementMatch.KeepCurrent
 
         if (selectedProfile.remarks.isNotBlank()) {
             profiles.entries.firstOrNull { (_, candidate) ->
@@ -23,29 +46,29 @@ internal object ProfileReplacement {
                         isSameText(candidate.server, selectedProfile.server) &&
                         isSameText(candidate.serverPort, selectedProfile.serverPort) &&
                         isSameText(candidate.password, selectedProfile.password)
-            }?.key?.let { return it }
+            }?.key?.let { return ReplacementMatch.Matched(it) }
 
             profiles.entries.firstOrNull { (_, candidate) ->
                 isSameText(candidate.remarks, selectedProfile.remarks)
-            }?.key?.let { return it }
+            }?.key?.let { return ReplacementMatch.Matched(it) }
         }
 
         profiles.entries.firstOrNull { (_, candidate) ->
             isSameText(candidate.server, selectedProfile.server) &&
                     isSameText(candidate.serverPort, selectedProfile.serverPort) &&
                     isSameText(candidate.password, selectedProfile.password)
-        }?.key?.let { return it }
+        }?.key?.let { return ReplacementMatch.Matched(it) }
 
         profiles.entries.firstOrNull { (_, candidate) ->
             isSameText(candidate.server, selectedProfile.server) &&
                     isSameText(candidate.serverPort, selectedProfile.serverPort)
-        }?.key?.let { return it }
+        }?.key?.let { return ReplacementMatch.Matched(it) }
 
         profiles.entries.firstOrNull { (_, candidate) ->
             isSameText(candidate.server, selectedProfile.server)
-        }?.key?.let { return it }
+        }?.key?.let { return ReplacementMatch.Matched(it) }
 
-        return profiles.keys.firstOrNull()
+        return ReplacementMatch.NoMatch
     }
 
     /**

@@ -16,6 +16,8 @@ object MmkvTestStorage {
     val subs: MMKV = mock()
     val settings: MMKV = mock()
     val profileFull: MMKV = mock()
+    val serverRaw: MMKV = mock()
+    val serverAff: MMKV = mock()
 
     private var initialized = false
 
@@ -28,11 +30,22 @@ object MmkvTestStorage {
             it.`when`<MMKV> { MMKV.mmkvWithID("SUB", MMKV.MULTI_PROCESS_MODE) }.thenReturn(subs)
             it.`when`<MMKV> { MMKV.mmkvWithID("SETTING", MMKV.MULTI_PROCESS_MODE) }.thenReturn(settings)
             it.`when`<MMKV> { MMKV.mmkvWithID("PROFILE_FULL_CONFIG", MMKV.MULTI_PROCESS_MODE) }.thenReturn(profileFull)
+            it.`when`<MMKV> { MMKV.mmkvWithID("SERVER_RAW", MMKV.MULTI_PROCESS_MODE) }.thenReturn(serverRaw)
+            it.`when`<MMKV> { MMKV.mmkvWithID("SERVER_AFF", MMKV.MULTI_PROCESS_MODE) }.thenReturn(serverAff)
             // Force storage initialization while the static mock is still active.
             MmkvManager.getSelectServer()
             MmkvManager.decodeServerConfig("test-initialize")
+            MmkvManager.decodeServerRaw("test-initialize")
+            MmkvManager.decodeServerAffiliationInfo("test-initialize")
             MmkvManager.decodeSubscriptions()
             MmkvManager.decodeSettingsString("test-initialize")
+            // The JVM has no MMKV native library: the cross-process lock and
+            // removeValuesForKeys are unmockable native methods and would throw
+            // UnsatisfiedLinkError. Substitute no-ops for the whole JVM run (see the
+            // seams in MmkvManager).
+            MmkvManager.acquireProfileIndexLock = { }
+            MmkvManager.releaseProfileIndexLock = { }
+            MmkvManager.removeProfilePayloadsHandler = { }
         }
     }
 }

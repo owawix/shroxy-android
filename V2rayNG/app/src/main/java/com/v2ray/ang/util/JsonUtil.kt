@@ -9,7 +9,10 @@ import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
 import com.google.gson.ToNumberPolicy
 import com.google.gson.reflect.TypeToken
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonToken
 import com.v2ray.ang.AppConfig
+import java.io.StringReader
 import java.lang.reflect.Type
 
 object JsonUtil {
@@ -97,6 +100,45 @@ object JsonUtil {
         }
     }
 
+    /**
+     * Reports whether the whole text parses as a strict JSON object.
+     *
+     * Gson's [parseString] relies on the lenient parser, which accepts unquoted
+     * names and values (e.g. `{X-hwid: broken}`) that would later be sent as raw
+     * header text. This check uses a non-lenient reader, requires a top-level
+     * object, and requires the input to be consumed to exhaustion. It is a pure
+     * predicate: invalid input is an expected validation result, not a failure
+     * worth logging.
+     *
+     * @param src The JSON string to validate.
+     * @return true when the entire text is a syntactically strict JSON object.
+     */
+    fun isStrictJsonObject(src: String?): Boolean {
+        if (src.isNullOrEmpty())
+            return false
+        return try {
+            JsonReader(StringReader(src)).use { reader ->
+                reader.isLenient = false
+                reader.beginObject()
+                while (reader.hasNext()) {
+                    reader.nextName()
+                    reader.skipValue()
+                }
+                reader.endObject()
+                // Any trailing token means the document is not fully consumed.
+                reader.peek() == JsonToken.END_DOCUMENT
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Parses a headers JSON object into the map of headers actually sent on the wire.
+     * JSON null entries are skipped (they carry no sendable string value); blank string
+     * values are kept because they are explicit user input and the edit-dialog
+     * validation reuses this parser, so what is validated is exactly what gets sent.
+     */
     fun parseHeadersToMap(headersJson: String?): Map<String, String> {
         val headerMap = mutableMapOf<String, String>()
         val jsonObject = parseString(headersJson) ?: return headerMap
@@ -106,9 +148,7 @@ object JsonUtil {
                     continue
                 }
                 val value = if (jsonElement.isJsonPrimitive) jsonElement.asString else jsonElement.toString()
-                if (value.isNotBlank()) {
-                    headerMap[key] = value
-                }
+                headerMap[key] = value
             }
         } catch (e: Exception) {
             LogUtil.e(AppConfig.TAG, "Failed to parse headers JSON", e)

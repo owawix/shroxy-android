@@ -31,7 +31,23 @@ data class MainUiState(
     /** Shroxy bypass-RU routing mode (PREF_SHROXY_BYPASS_RU); false = global proxy mode. */
     val bypassRu: Boolean = false,
     /** A clipboard/QR/batch import is running; the Shroxy screen shows the skeleton card. */
-    val importInProgress: Boolean = false
+    val importInProgress: Boolean = false,
+    /** Shroxy "Edit subscription" dialog; null = closed. Keyed by subscription GUID. */
+    val subscriptionEditDialog: SubscriptionEditUiState? = null
+)
+
+/**
+ * State of the Shroxy "Edit subscription" dialog. Identified by the subscription GUID
+ * (never a list position); the field values seed the dialog's transient text input and
+ * the validation error is a durable state owned by the ViewModel.
+ */
+data class SubscriptionEditUiState(
+    val subscriptionGuid: String,
+    val subscriptionUrl: String,
+    val userAgent: String,
+    val requestHeadersJson: String,
+    /** Localized headers-JSON validation error; null = no error. */
+    val headersError: String? = null,
 )
 
 /**
@@ -49,6 +65,21 @@ sealed interface MainAction {
     data class ToggleGroupExpanded(val groupId: String, val expanded: Boolean) : MainAction
     data class RefreshSubscription(val subscriptionGuid: String) : MainAction
     data class DeleteSubscription(val subscriptionGuid: String) : MainAction
+    /** Opens the Shroxy "Edit subscription" dialog for the subscription with this GUID. */
+    data class EditSubscription(val subscriptionGuid: String) : MainAction
+    /**
+     * Persists the edited subscription URL/User-Agent/headers JSON for this GUID, closes
+     * the dialog on success and triggers a subscription refresh; invalid headers JSON
+     * keeps the dialog open with an inline error instead of persisting.
+     */
+    data class UpdateSubscriptionSettings(
+        val subscriptionGuid: String,
+        val url: String,
+        val userAgent: String,
+        val headersJson: String,
+    ) : MainAction
+    /** Closes the Shroxy "Edit subscription" dialog without persisting. */
+    data object DismissSubscriptionEditor : MainAction
     data object OpenQr : MainAction
     data object CancelTesting : MainAction
     data object RemoveAllServers : MainAction

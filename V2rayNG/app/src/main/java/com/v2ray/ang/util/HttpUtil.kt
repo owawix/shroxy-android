@@ -211,6 +211,57 @@ object HttpUtil {
         throw IOException("Too many redirects")
     }
 
+    /**
+     * True when a fetched body looks like an HTML document rather than subscription content.
+     * Panels may answer an unknown User-Agent with an HTML page (login or error interstitial)
+     * instead of the subscription payload.
+     */
+    fun isLikelyHtml(body: String): Boolean = body.trimStart().startsWith("<")
+
+    /**
+     * Decides whether a subscription fetch that returned [firstBody] should be retried once
+     * with the fallback User-Agent: the body looks like HTML and the request was not already
+     * sent with that fallback (a custom subscription User-Agent starting with
+     * [AppConfig.SUBSCRIPTION_FALLBACK_UA_PREFIX]; blank means the default app UA was used).
+     */
+    fun shouldRetryWithFallbackUa(firstBody: String, subscriptionUserAgent: String?): Boolean {
+        if (!isLikelyHtml(firstBody)) return false
+        if (subscriptionUserAgent.isNullOrBlank()) return true
+        return !subscriptionUserAgent.startsWith(AppConfig.SUBSCRIPTION_FALLBACK_UA_PREFIX, ignoreCase = true)
+    }
+
+    /** The fallback subscription User-Agent, built from [AppConfig.SUBSCRIPTION_FALLBACK_UA_PREFIX]. */
+    fun subscriptionFallbackUserAgent(): String =
+        "${AppConfig.SUBSCRIPTION_FALLBACK_UA_PREFIX}/${BuildConfig.VERSION_NAME}"
+
+    /**
+     * Resolves the User-Agent a subscription fetch actually sends. A "User-Agent" entry
+     * in the custom headers JSON overrides the subscription's User-Agent field because
+     * [getUrlContentWithUserAgent] applies custom headers after the User-Agent header
+     * (names match case-insensitively, like OkHttp; the last matching entry wins).
+     * A null or blank result means the built-in default User-Agent was sent.
+     */
+    fun effectiveSubscriptionUserAgent(subscriptionUserAgent: String?, requestHeaders: String?): String? {
+        var overridden: String? = null
+        for ((key, value) in JsonUtil.parseHeadersToMap(requestHeaders)) {
+            if (key.equals("User-Agent", ignoreCase = true)) overridden = value
+        }
+        return overridden ?: subscriptionUserAgent
+    }
+
+    /**
+     * Copies the custom headers JSON without any "User-Agent" entry (matched
+     * case-insensitively), so a fallback retry can send its own User-Agent parameter
+     * instead of the stored override that was just rejected. Returns null when no
+     * headers remain, which [JsonUtil.parseHeadersToMap] treats as "no custom headers".
+     */
+    fun requestHeadersWithoutUserAgent(requestHeaders: String?): String? {
+        val remaining = JsonUtil.parseHeadersToMap(requestHeaders)
+            .filterKeys { !it.equals("User-Agent", ignoreCase = true) }
+        if (remaining.isEmpty()) return null
+        return JsonUtil.toJson(remaining)
+    }
+
     private fun applyEmbeddedBasicAuthHeader(rawUrl: String, requestBuilder: Request.Builder) {
         val parsed = runCatching { URL(rawUrl) }.getOrNull() ?: return
         parsed.userInfo?.let { userInfo ->

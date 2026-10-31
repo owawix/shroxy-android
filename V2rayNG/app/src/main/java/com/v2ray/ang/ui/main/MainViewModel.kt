@@ -22,6 +22,7 @@ import com.v2ray.ang.extension.moveItem
 import com.v2ray.ang.handler.SettingsManager
 import com.v2ray.ang.handler.SubscriptionInfoParser
 import com.v2ray.ang.ui.base.BaseViewModel
+import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.LogUtil
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -85,6 +86,24 @@ internal fun visibleGroupSubscriptions(
     hasServers: (String) -> Boolean,
 ): List<SubscriptionCache> =
     subscriptions.filter { hasServers(it.guid) || !it.subscription.lastError.isNullOrEmpty() }
+
+/**
+ * Parses subscription request headers as entered in the Shroxy edit dialog. Returns
+ * null when the JSON syntax is invalid (the caller must show the inline error and not
+ * persist), an empty map when the field is blank (clears requestHeaders), or the header
+ * map otherwise. Blank entry values are explicit user input and are kept, so only a
+ * blank field clears requestHeaders. The syntax check runs first and is strict
+ * ([JsonUtil.isStrictJsonObject]) because Gson's lenient parser would accept unquoted
+ * names and values that would then be sent as literal header text on the wire. The
+ * value mapping itself is delegated to the same fetch-time parser
+ * [JsonUtil.parseHeadersToMap], so what is validated is exactly what gets sent.
+ */
+internal fun parseSubscriptionHeaders(headersJson: String?): Map<String, String>? {
+    val trimmed = headersJson?.trim().orEmpty()
+    if (trimmed.isEmpty()) return emptyMap()
+    if (!JsonUtil.isStrictJsonObject(trimmed)) return null
+    return JsonUtil.parseHeadersToMap(trimmed)
+}
 
 class MainViewModel(
     application: Application,
@@ -322,6 +341,11 @@ class MainViewModel(
 
             is MainAction.RefreshSubscription -> importConfigViaSub(action.subscriptionGuid)
             is MainAction.DeleteSubscription -> deleteSubscription(action.subscriptionGuid)
+            is MainAction.EditSubscription -> openSubscriptionEditor(action.subscriptionGuid)
+            is MainAction.UpdateSubscriptionSettings -> updateSubscriptionSettings(action)
+            MainAction.DismissSubscriptionEditor -> _uiState.update {
+                it.copy(subscriptionEditDialog = null)
+            }
             MainAction.ImportClipboard -> importClipboard()
             MainAction.CancelTesting -> cancelAllPing()
             MainAction.RemoveAllServers -> removeAllServerAsync()
@@ -650,6 +674,96 @@ class MainViewModel(
                 throw cancelled
             } catch (e: Exception) {
                 LogUtil.e(AppConfig.TAG, "Failed to delete subscription: $guid", e)
+            }
+        }
+    }
+
+    /** Opens the Shroxy edit dialog seeded with the subscription's current values. */
+    private fun openSubscriptionEditor(guid: String) {
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val item = dataSource.getSubscriptionItem(guid)
+                if (item == null) {
+                    LogUtil.e(AppConfig.TAG, "Subscription to edit not found: $guid")
+                    return@launch
+                }
+                _uiState.update {
+                    it.copy(
+                        subscriptionEditDialog = SubscriptionEditUiState(
+                            subscriptionGuid = guid,
+                            subscriptionUrl = item.url,
+                            userAgent = item.userAgent.orEmpty(),
+                            requestHeadersJson = item.requestHeaders.orEmpty(),
+                        )
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "Failed to open subscription editor: $guid", e)
+            }
+        }
+    }
+
+    /**
+     * Persists the edited subscription settings (per-subscription User-Agent: blank = the
+     * default Shroxy UA; request headers: blank = cleared, otherwise the JSON text as
+     * entered). Invalid headers JSON keeps the dialog open with an inline error and
+     * persists nothing. A successful save closes the dialog and refreshes the subscription.
+     */
+    private fun updateSubscriptionSettings(action: MainAction.UpdateSubscriptionSettings) {
+        val guid = action.subscriptionGuid
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                val headers = parseSubscriptionHeaders(action.headersJson)
+                if (headers == null) {
+                    _uiState.update { state ->
+                        val dialog = state.subscriptionEditDialog
+                        if (dialog?.subscriptionGuid != guid) {
+                            state
+                        } else {
+                            state.copy(
+                                subscriptionEditDialog = dialog.copy(
+                                    headersError = dataSource.getString(
+                                        R.string.shroxy_sub_edit_headers_error
+                                    )
+                                )
+                            )
+                        }
+                    }
+                    return@launch
+                }
+                val item = dataSource.getSubscriptionItem(guid)
+                if (item == null) {
+                    LogUtil.e(AppConfig.TAG, "Subscription to update not found: $guid")
+                    _uiState.update { state ->
+                        if (state.subscriptionEditDialog?.subscriptionGuid == guid) {
+                            state.copy(subscriptionEditDialog = null)
+                        } else {
+                            state
+                        }
+                    }
+                    return@launch
+                }
+                item.url = action.url.trim()
+                item.userAgent = action.userAgent.trim().takeIf { it.isNotEmpty() }
+                // Only a blank field clears the headers; any non-blank JSON the user
+                // typed (even "{}" or blank values) is explicit input and persists.
+                val trimmedHeaders = action.headersJson.trim()
+                item.requestHeaders = if (trimmedHeaders.isEmpty()) null else trimmedHeaders
+                dataSource.encodeSubscription(guid, item)
+                _uiState.update { state ->
+                    if (state.subscriptionEditDialog?.subscriptionGuid == guid) {
+                        state.copy(subscriptionEditDialog = null)
+                    } else {
+                        state
+                    }
+                }
+                importConfigViaSub(guid)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                LogUtil.e(AppConfig.TAG, "Failed to update subscription settings: $guid", e)
             }
         }
     }

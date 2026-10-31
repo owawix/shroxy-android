@@ -153,6 +153,9 @@ class MainRepository(
     override fun removeSubscription(subscriptionId: String) =
         MmkvManager.removeSubscription(subscriptionId)
 
+    override fun encodeSubscription(subscriptionId: String, item: SubscriptionItem) =
+        MmkvManager.encodeSubscription(subscriptionId, item)
+
     override fun getServerGuidList(groupId: String): List<String> =
         if (groupId.isEmpty()) {
             MmkvManager.decodeAllServerList()

@@ -78,6 +78,7 @@ fun ShroxySubscriptionGroup(
     onTestAll: () -> Unit,
     onMenuExpandedChange: (Boolean) -> Unit,
     onUpdate: () -> Unit,
+    onEdit: () -> Unit = {},
     onDelete: () -> Unit,
     subscriptionUrl: String? = null,
     onOpenSubscriptionUrl: () -> Unit = {},
@@ -119,6 +120,7 @@ fun ShroxySubscriptionGroup(
                 onTestAll = onTestAll,
                 onMenuExpandedChange = onMenuExpandedChange,
                 onUpdate = onUpdate,
+                onEdit = onEdit,
                 onDelete = onDelete,
             )
             HorizontalDivider(
@@ -198,6 +200,7 @@ private fun GroupHeader(
     onTestAll: () -> Unit,
     onMenuExpandedChange: (Boolean) -> Unit,
     onUpdate: () -> Unit,
+    onEdit: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val chevronDescription = stringResource(
@@ -282,6 +285,13 @@ private fun GroupHeader(
                     onClick = {
                         onMenuExpandedChange(false)
                         onUpdate()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.shroxy_group_edit)) },
+                    onClick = {
+                        onMenuExpandedChange(false)
+                        onEdit()
                     },
                 )
                 DropdownMenuItem(

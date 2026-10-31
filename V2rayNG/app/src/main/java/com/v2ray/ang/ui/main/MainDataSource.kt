@@ -34,6 +34,9 @@ interface MainDataSource : Closeable {
     /** Removes a subscription and every server that belongs to it. */
     fun removeSubscription(subscriptionId: String)
 
+    /** Persists an edited subscription item (URL, User-Agent, request headers, ...). */
+    fun encodeSubscription(subscriptionId: String, item: SubscriptionItem)
+
     fun getServerGuidList(groupId: String): List<String>
     fun decodeServerConfig(guid: String): ProfileItem?
     fun decodeAffiliationInfo(guid: String): ServerAffiliationInfo?

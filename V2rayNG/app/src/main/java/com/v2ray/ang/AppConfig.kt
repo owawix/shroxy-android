@@ -16,6 +16,9 @@ object AppConfig {
     // Default subscription ID for ungrouped servers
     const val DEFAULT_SUBSCRIPTION_ID = "__default_subscription__"
 
+    /** Prefix of the fallback subscription User-Agent ("v2rayNG/<version>") used when a panel answers the default UA with HTML. */
+    const val SUBSCRIPTION_FALLBACK_UA_PREFIX = "v2rayNG"
+
     /** External purchase link for the Shroxy main-screen empty state (opens the Telegram bot). */
     const val SHROXY_PURCHASE_URL = "https://t.me/shroomvpn_bot"
 

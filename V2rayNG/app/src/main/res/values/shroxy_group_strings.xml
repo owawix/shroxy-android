@@ -6,6 +6,7 @@
     <string name="shroxy_group_test_all">Test all servers</string>
     <string name="shroxy_group_more">More actions</string>
     <string name="shroxy_group_update">Update subscription</string>
+    <string name="shroxy_group_edit">Edit</string>
     <string name="shroxy_group_delete">Delete subscription</string>
     <string name="shroxy_group_open_subscription_url">Open subscription link</string>
     <string name="shroxy_traffic_unlimited">∞</string>
@@ -23,4 +24,12 @@
     <string name="shroxy_sub_error_parse">Subscription update failed: invalid format</string>
     <string name="shroxy_sub_error_empty">Subscription update failed: empty response</string>
     <string name="shroxy_sub_error_generic">Subscription update failed</string>
+    <string name="shroxy_sub_edit_title">Edit subscription</string>
+    <string name="shroxy_sub_edit_url_label">Subscription URL</string>
+    <string name="shroxy_sub_edit_user_agent_label">User-Agent</string>
+    <string name="shroxy_sub_edit_user_agent_hint">Leave empty to use the default (Shroxy/&lt;version&gt;)</string>
+    <string name="shroxy_sub_edit_headers_label">Headers (JSON)</string>
+    <string name="shroxy_sub_edit_headers_placeholder">{"X-hwid":"my_test_device","Authorization":"Bearer test"}</string>
+    <string name="shroxy_sub_edit_headers_error">Invalid JSON</string>
+    <string name="shroxy_sub_edit_save">Save</string>
 </resources>

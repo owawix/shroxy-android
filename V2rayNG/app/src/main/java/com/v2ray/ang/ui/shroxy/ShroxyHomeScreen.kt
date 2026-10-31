@@ -64,6 +64,7 @@ import com.v2ray.ang.ui.shroxy.components.ShroxyPowerState
 import com.v2ray.ang.ui.shroxy.components.ShroxyServerRow
 import com.v2ray.ang.ui.shroxy.components.ShroxySubscriptionGroup
 import com.v2ray.ang.ui.shroxy.components.ShroxySubscriptionGroupSkeleton
+import com.v2ray.ang.ui.shroxy.components.ShroxySubscriptionEditDialog
 import com.v2ray.ang.ui.shroxy.components.ShroxyTestPingRow
 import com.v2ray.ang.ui.shroxy.components.ShroxyTopBar
 
@@ -167,6 +168,25 @@ fun ShroxyHomeScreen(
             }
         }
     }
+
+    // Durable dialog state (open/closed, GUID, validation error) lives in MainUiState;
+    // the dialog itself owns only the uncommitted text input.
+    uiState.subscriptionEditDialog?.let { dialogState ->
+        ShroxySubscriptionEditDialog(
+            state = dialogState,
+            onConfirm = { url, userAgent, headersJson ->
+                onAction(
+                    MainAction.UpdateSubscriptionSettings(
+                        subscriptionGuid = dialogState.subscriptionGuid,
+                        url = url,
+                        userAgent = userAgent,
+                        headersJson = headersJson,
+                    )
+                )
+            },
+            onDismiss = { onAction(MainAction.DismissSubscriptionEditor) },
+        )
+    }
 }
 
 /**
@@ -225,6 +245,7 @@ private fun ShroxyGroupList(
                     onTestAll = { onAction(MainAction.TestAllServers(group.id)) },
                     onMenuExpandedChange = { groupMenuExpanded[group.id] = it },
                     onUpdate = { onAction(MainAction.RefreshSubscription(group.id)) },
+                    onEdit = { onAction(MainAction.EditSubscription(group.id)) },
                     onDelete = { onAction(MainAction.DeleteSubscription(group.id)) },
                     subscriptionUrl = group.subscriptionUrl,
                     onOpenSubscriptionUrl = {

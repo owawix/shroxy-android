@@ -21,4 +21,17 @@ class JsonUtilTest {
         assertEquals("1700000000000", output["timestamp"].asString)
         assertEquals("0.4", output["name"].asString)
     }
+
+    @Test
+    fun parseHeadersToMapKeepsBlankValuesAndSkipsNullEntries() {
+        // Blank values are explicit user input and are sent on the wire, so the parser
+        // must keep them (the edit-dialog validation reuses this same parser).
+        assertEquals(
+            linkedMapOf("X-hwid" to "  "),
+            JsonUtil.parseHeadersToMap("""{"X-hwid":"  "}""")
+        )
+        // JSON null entries carry no sendable string value.
+        assertEquals(emptyMap<String, String>(), JsonUtil.parseHeadersToMap("""{"X-gone":null}"""))
+        assertEquals(emptyMap<String, String>(), JsonUtil.parseHeadersToMap(null))
+    }
 }

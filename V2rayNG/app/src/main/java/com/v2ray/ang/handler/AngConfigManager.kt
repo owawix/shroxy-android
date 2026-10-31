@@ -518,6 +518,7 @@ object AngConfigManager {
             // Error code of the last failed fetch attempt; only stable codes are persisted
             // (see SubscriptionErrorCode) — never raw messages with host:port.
             var fetchErrorCode: String? = null
+            var lastFetchUsedProxy = true
             var configText = try {
                 val httpPort = SettingsManager.getHttpPort()
                 HttpUtil.getUrlContentWithUserAgent(
@@ -541,6 +542,7 @@ object AngConfigManager {
                 // The direct attempt's outcome decides: a successful-but-empty response
                 // means "empty", not the proxy attempt's connection error.
                 fetchErrorCode = null
+                lastFetchUsedProxy = false
                 configText = try {
                     HttpUtil.getUrlContentWithUserAgent(
                         UrlContentRequest(
@@ -554,6 +556,40 @@ object AngConfigManager {
                     LogUtil.e(AppConfig.TAG, "Update subscription: Failed to get URL content with user agent", e)
                     fetchErrorCode = classifySubscriptionFetchError(e)
                     ""
+                }
+            }
+
+            // Attempt order: proxy fetch -> direct fetch -> the HTML fallback retry below.
+            // The proxy/direct retries above stay untouched; the fallback runs at most once,
+            // only when a fetch returned HTML while the effective User-Agent (a "User-Agent"
+            // custom header overrides the subscription field) is not already the fallback.
+            if (HttpUtil.shouldRetryWithFallbackUa(
+                    configText,
+                    HttpUtil.effectiveSubscriptionUserAgent(userAgent, requestHeaders)
+                )
+            ) {
+                val fallbackText = try {
+                    HttpUtil.getUrlContentWithUserAgent(
+                        UrlContentRequest(
+                            url = url,
+                            userAgent = HttpUtil.subscriptionFallbackUserAgent(),
+                            // Drop a "User-Agent" custom header so the fallback UA parameter wins.
+                            requestHeaders = HttpUtil.requestHeadersWithoutUserAgent(requestHeaders),
+                            timeout = 15000,
+                            httpPort = if (lastFetchUsedProxy) SettingsManager.getHttpPort() else 0,
+                            proxyUsername = proxyUsername,
+                            proxyPassword = proxyPassword
+                        ),
+                        captureUsageInfo
+                    )
+                } catch (e: Exception) {
+                    LogUtil.e(AppConfig.TAG, "Update subscription: fallback User-Agent fetch failed", e)
+                    null
+                }
+                // A failed or still-HTML fallback keeps the original body, which ends in the
+                // existing parse path (PARSE error) exactly as before this retry existed.
+                if (!fallbackText.isNullOrEmpty()) {
+                    configText = fallbackText
                 }
             }
             if (configText.isEmpty()) {

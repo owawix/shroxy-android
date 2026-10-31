@@ -6,6 +6,7 @@
     <string name="shroxy_group_test_all">Протестировать все серверы</string>
     <string name="shroxy_group_more">Другие действия</string>
     <string name="shroxy_group_update">Обновить подписку</string>
+    <string name="shroxy_group_edit">Изменить</string>
     <string name="shroxy_group_delete">Удалить подписку</string>
     <string name="shroxy_group_open_subscription_url">Открыть ссылку подписки</string>
     <string name="shroxy_traffic_unlimited">∞</string>
@@ -23,4 +24,12 @@
     <string name="shroxy_sub_error_parse">Не удалось обновить подписку: неверный формат</string>
     <string name="shroxy_sub_error_empty">Не удалось обновить подписку: пустой ответ</string>
     <string name="shroxy_sub_error_generic">Не удалось обновить подписку</string>
+    <string name="shroxy_sub_edit_title">Изменить подписку</string>
+    <string name="shroxy_sub_edit_url_label">URL подписки</string>
+    <string name="shroxy_sub_edit_user_agent_label">User-Agent</string>
+    <string name="shroxy_sub_edit_user_agent_hint">Оставьте пустым, чтобы использовать значение по умолчанию (Shroxy/&lt;version&gt;)</string>
+    <string name="shroxy_sub_edit_headers_label">Заголовки (JSON)</string>
+    <string name="shroxy_sub_edit_headers_placeholder">{"X-hwid":"my_test_device","Authorization":"Bearer test"}</string>
+    <string name="shroxy_sub_edit_headers_error">Некорректный JSON</string>
+    <string name="shroxy_sub_edit_save">Сохранить</string>
 </resources>

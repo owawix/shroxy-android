@@ -11,6 +11,9 @@ internal class MainTestRequests {
         private set
     val isTesting: Boolean get() = current != null || bulk != null
 
+    /** Group ID of the in-flight bulk test; null = no group test is running. */
+    val testingGroupId: String? get() = bulk?.groupId
+
     fun beginCurrent(): String = UUID.randomUUID().toString().also { current = it }
 
     fun completeCurrent(id: String): Boolean {

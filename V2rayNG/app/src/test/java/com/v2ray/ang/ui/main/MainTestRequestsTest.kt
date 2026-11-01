@@ -59,4 +59,36 @@ class MainTestRequestsTest {
         assertEquals(bulk, requests.completeBulk(bulk.id))
         assertFalse(requests.isTesting)
     }
+
+    @Test
+    fun testingGroupIdFollowsTheNewestBulkAndClearsWhenItCompletes() {
+        val requests = MainTestRequests()
+        assertNull(requests.testingGroupId)
+
+        val first = requests.beginBulk("group-1")
+        assertEquals("group-1", requests.testingGroupId)
+
+        // A replacement bulk moves the flag to the new group; a late reply for the
+        // replaced bulk must not clear it.
+        val second = requests.beginBulk("group-2")
+        assertEquals("group-2", requests.testingGroupId)
+        assertNull(requests.completeBulk(first.id))
+        assertEquals("group-2", requests.testingGroupId)
+
+        // onTestsFinished completes the live bulk: the flag clears with it.
+        assertEquals(second, requests.completeBulk(second.id))
+        assertNull(requests.testingGroupId)
+        assertFalse(requests.isTesting)
+    }
+
+    @Test
+    fun cancelBulkClearsTestingGroupId() {
+        // cancelAllPing cancels the live bulk: the flag clears with it.
+        val requests = MainTestRequests()
+        requests.beginBulk("group-1")
+        assertEquals("group-1", requests.testingGroupId)
+        requests.cancelBulk()
+        assertNull(requests.testingGroupId)
+        assertFalse(requests.isTesting)
+    }
 }

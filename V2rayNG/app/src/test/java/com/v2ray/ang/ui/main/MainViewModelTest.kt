@@ -388,6 +388,86 @@ class MainViewModelTest {
     private fun subCache(guid: String) =
         SubscriptionCache(guid, SubscriptionItem(remarks = guid))
 
+    /** Stubs a one-group data source that can run a bulk ping test end to end. */
+    private fun stubBulkTestDataSource(
+        dataSource: MainDataSource,
+        events: MutableSharedFlow<MainServiceEvent>,
+    ) {
+        runBlocking {
+            whenever(dataSource.mainServiceEvent).thenReturn(events)
+            whenever(dataSource.getSubscriptions()).thenReturn(listOf(subCache("group-1")))
+            whenever(dataSource.getServerGuidList("group-1")).thenReturn(listOf("g1", "g2"))
+            listOf("g1", "g2").forEach { guid ->
+                whenever(dataSource.decodeServerConfig(guid)).thenReturn(
+                    ProfileItem(configType = EConfigType.VLESS, remarks = guid)
+                )
+            }
+        }
+    }
+
+    /** Starts a bulk test and waits until the service message carries its request ID. */
+    private fun startBulkTest(dataSource: MainDataSource, viewModel: MainViewModel): String {
+        var requestId: String? = null
+        runBlocking {
+            whenever(dataSource.sendMsg2TestService(any(), anyOrNull())).thenAnswer {
+                requestId = it.getArgument(1)
+            }
+        }
+        viewModel.onAction(MainAction.TestAllServers("group-1"))
+        awaitTrue(5_000) { requestId != null }
+        return requestId.orEmpty()
+    }
+
+    @Test
+    fun bulkTestSetsTestingGroupIdAndClearsItWhenFinished() {
+        val dataSource = newDataSource()
+        val events = MutableSharedFlow<MainServiceEvent>(extraBufferCapacity = 16)
+        stubBulkTestDataSource(dataSource, events)
+        val viewModel = newViewModel(dataSource)
+        awaitRows(viewModel, "group-1", 2)
+        assertNull(viewModel.uiState.value.testingGroupId)
+
+        val id = startBulkTest(dataSource, viewModel)
+        assertEquals("group-1", viewModel.uiState.value.testingGroupId)
+        assertTrue(viewModel.uiState.value.isTesting)
+
+        events.tryEmit(MainServiceEvent.MeasureConfigFinish(id))
+        awaitTrue(5_000) { viewModel.uiState.value.testingGroupId == null }
+        assertFalse(viewModel.uiState.value.isTesting)
+    }
+
+    @Test
+    fun bulkTestClearsTestingGroupIdWhenTheServiceCancelsTheBatch() {
+        val dataSource = newDataSource()
+        val events = MutableSharedFlow<MainServiceEvent>(extraBufferCapacity = 16)
+        stubBulkTestDataSource(dataSource, events)
+        val viewModel = newViewModel(dataSource)
+        awaitRows(viewModel, "group-1", 2)
+
+        val id = startBulkTest(dataSource, viewModel)
+        assertEquals("group-1", viewModel.uiState.value.testingGroupId)
+
+        events.tryEmit(MainServiceEvent.MeasureConfigCancelled(id))
+        awaitTrue(5_000) { viewModel.uiState.value.testingGroupId == null }
+        assertFalse(viewModel.uiState.value.isTesting)
+    }
+
+    @Test
+    fun cancelAllPingClearsTestingGroupId() {
+        val dataSource = newDataSource()
+        val events = MutableSharedFlow<MainServiceEvent>(extraBufferCapacity = 16)
+        stubBulkTestDataSource(dataSource, events)
+        val viewModel = newViewModel(dataSource)
+        awaitRows(viewModel, "group-1", 2)
+
+        startBulkTest(dataSource, viewModel)
+        assertEquals("group-1", viewModel.uiState.value.testingGroupId)
+
+        viewModel.onAction(MainAction.CancelTesting)
+        assertNull(viewModel.uiState.value.testingGroupId)
+        assertFalse(viewModel.uiState.value.isTesting)
+    }
+
     private fun awaitRows(viewModel: MainViewModel, groupId: String, size: Int) {
         awaitTrue(5_000) { viewModel.serverGroupState(groupId).value.rows.size == size }
         assertEquals(size, viewModel.serverGroupState(groupId).value.rows.size)

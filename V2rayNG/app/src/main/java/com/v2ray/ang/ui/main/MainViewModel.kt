@@ -1056,10 +1056,12 @@ class MainViewModel(
         dataSource.cancelAllPing()
     }
 
+    /** Completion sink for tests: syncs isTesting and testingGroupId from testRequests. */
     private fun resetTestStatus() {
         _uiState.update {
             it.copy(
                 isTesting = testRequests.isTesting,
+                testingGroupId = testRequests.testingGroupId,
                 status = if (testRequests.isTesting) MainStatus.Testing
                 else if (it.isRunning) MainStatus.Connected else MainStatus.Disconnected
             )
@@ -1108,6 +1110,7 @@ class MainViewModel(
             _uiState.update {
                 it.copy(
                     isTesting = true,
+                    testingGroupId = request.groupId,
                     status = MainStatus.Testing
                 )
             }

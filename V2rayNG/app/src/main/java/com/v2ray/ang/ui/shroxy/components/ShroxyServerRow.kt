@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,14 +25,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.v2ray.ang.R
 import com.v2ray.ang.ui.compose.AppTheme
-import com.v2ray.ang.ui.shroxy.DelayText
-import com.v2ray.ang.ui.shroxy.formatServerDelay
+import com.v2ray.ang.ui.shroxy.RowPingUiState
+import com.v2ray.ang.ui.shroxy.rowPingUiState
 
 /**
  * A single server row in an expanded subscription group. Stateless: selection and identity
@@ -50,6 +53,8 @@ fun ShroxyServerRow(
     bottomCornerRadius: Dp = 0.dp,
     /** Last bulk-test delay for this server in ms; null (or absent) hides the trailing value. */
     delayMillis: Long? = null,
+    /** True while this row's subscription group bulk test is running (pending rows spin). */
+    isGroupTesting: Boolean = false,
 ) {
     // A leading emoji flag is rendered once — as the flag icon — not duplicated in the title.
     val leading = remember(title) { CountryFlags.stripLeadingFlag(title) }
@@ -124,18 +129,38 @@ fun ShroxyServerRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            val delayText = formatServerDelay(delayMillis)
-            if (delayText != null) {
-                // Trailing per-server result of the group speed test; hidden until measured.
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = when (delayText) {
-                        is DelayText.Value -> stringResource(R.string.server_test_delay_value, delayText.millis)
-                        DelayText.NotAvailable -> stringResource(R.string.ping_not_available)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            // Trailing per-server slot of the group speed test: a small spinner while the
+            // row's group test is running and this row has no result yet, then the value
+            // or N/A; outside a running test an unmeasured row keeps an empty slot.
+            when (val rowState = rowPingUiState(isGroupTesting = isGroupTesting, delayMillis = delayMillis)) {
+                RowPingUiState.Loading -> {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    val checking = stringResource(R.string.ping_checking)
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .semantics { contentDescription = checking },
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                is RowPingUiState.Value -> {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.server_test_delay_value, rowState.millis),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                RowPingUiState.NotAvailable -> {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.ping_not_available),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                RowPingUiState.None -> Unit
             }
         }
     }

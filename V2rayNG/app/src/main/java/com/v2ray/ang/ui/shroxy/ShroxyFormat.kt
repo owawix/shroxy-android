@@ -42,6 +42,33 @@ fun formatServerDelay(millis: Long?): DelayText? = when {
 }
 
 /**
+ * Trailing value slot of a server row during and after a group ping test. [Loading] marks
+ * a slot whose row's group test is running and whose measurement has not arrived yet;
+ * [None] hides the slot entirely.
+ */
+sealed interface RowPingUiState {
+    data object Loading : RowPingUiState
+    data class Value(val millis: Long) : RowPingUiState
+    data object NotAvailable : RowPingUiState
+    data object None : RowPingUiState
+}
+
+/**
+ * Maps a stored bulk-test delay to the row's trailing slot state: while the row's group
+ * is being tested and no value exists (null, or the 0 ms bulk-test reset), the slot shows
+ * the loading spinner; a result — positive or failed — replaces it as it arrives. Outside
+ * a group test the existing behavior holds: no value hides the slot.
+ */
+fun rowPingUiState(isGroupTesting: Boolean, delayMillis: Long?): RowPingUiState {
+    val formatted = formatServerDelay(delayMillis)
+    return when (formatted) {
+        null -> if (isGroupTesting) RowPingUiState.Loading else RowPingUiState.None
+        is DelayText.Value -> RowPingUiState.Value(formatted.millis)
+        DelayText.NotAvailable -> RowPingUiState.NotAvailable
+    }
+}
+
+/**
  * Maps the main-screen connection state to the test/ping row state: a running test wins;
  * a finished non-negative measurement stays visible as the result until the next run.
  */

@@ -78,4 +78,22 @@ class ShroxyFormatTest {
     fun serverDelayKeepsPositiveValue() {
         assertEquals(DelayText.Value(145), formatServerDelay(145L))
     }
+
+    @Test
+    fun rowPingUiStateShowsLoadingWhileGroupTestHasNoResult() {
+        assertEquals(RowPingUiState.Loading, rowPingUiState(isGroupTesting = true, delayMillis = null))
+        assertEquals(RowPingUiState.Loading, rowPingUiState(isGroupTesting = true, delayMillis = 0L))
+    }
+
+    @Test
+    fun rowPingUiStateReplacesSpinnerAsResultsArrive() {
+        assertEquals(RowPingUiState.Value(120), rowPingUiState(isGroupTesting = true, delayMillis = 120L))
+        assertEquals(RowPingUiState.NotAvailable, rowPingUiState(isGroupTesting = true, delayMillis = -1L))
+    }
+
+    @Test
+    fun rowPingUiStateOutsideGroupTestKeepsExistingSlotBehavior() {
+        assertEquals(RowPingUiState.None, rowPingUiState(isGroupTesting = false, delayMillis = null))
+        assertEquals(RowPingUiState.Value(95), rowPingUiState(isGroupTesting = false, delayMillis = 95L))
+    }
 }

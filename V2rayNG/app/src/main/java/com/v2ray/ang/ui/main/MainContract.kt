@@ -22,6 +22,8 @@ data class MainUiState(
     val selectedGuid: String? = null,
     val isRunning: Boolean = false,
     val isTesting: Boolean = false,
+    /** Group ID of the running bulk ping test; null = no group test is running. */
+    val testingGroupId: String? = null,
     val status: MainStatus = MainStatus.Disconnected,
     val locateTarget: LocateTarget? = null,
     val confirmRemove: Boolean = false,

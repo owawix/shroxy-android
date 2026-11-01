@@ -297,6 +297,7 @@ private fun ShroxyGroupList(
                                     onClick = { guid -> onAction(MainAction.SelectServer(guid)) },
                                     bottomCornerRadius = if (index == groupState.rows.lastIndex) 16.dp else 0.dp,
                                     delayMillis = row.testDelayMillis.takeIf { it != 0L },
+                                    isGroupTesting = uiState.testingGroupId == group.id,
                                 )
                             }
                         }

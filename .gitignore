@@ -69,3 +69,9 @@ V2rayNG/app/google-services.json
 # Ignore OS-specific files
 Thumbs.db
 .DS_Store
+
+# Ignore local planning, screenshot, and prebuilt-library artifacts
+.plans/
+shroxy_app_screens/
+libs/
+V2rayNG/gradle/gradle-daemon-jvm.properties

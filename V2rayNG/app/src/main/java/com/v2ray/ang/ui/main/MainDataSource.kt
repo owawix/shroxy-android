@@ -31,6 +31,12 @@ interface MainDataSource : Closeable {
     /** Current clipboard text; empty string when nothing readable is available. */
     fun getClipboardContent(): String
 
+    /** Writes plain text to the system clipboard. */
+    fun copyToClipboard(text: String)
+
+    /** Returns the persistent Shroxy HWID, generating and storing it on first use. */
+    fun ensureHwid(): String
+
     /** Removes a subscription and every server that belongs to it. */
     fun removeSubscription(subscriptionId: String)
 

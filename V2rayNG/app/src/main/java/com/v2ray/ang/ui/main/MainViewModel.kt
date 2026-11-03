@@ -362,6 +362,7 @@ class MainViewModel(
             is MainAction.ImportBatchConfig -> importBatchConfig(action.configText)
             MainAction.LocateHandled -> consumeLocateTarget()
             is MainAction.SetBypassRu -> setBypassRu(action.enabled)
+            is MainAction.CopyHwid -> copyHwid(action.hwid)
             MainAction.ToggleService,
             MainAction.TestCurrentServer,
             MainAction.ImportQRcode,
@@ -402,6 +403,18 @@ class MainViewModel(
                 doubleColumnDisplay = dataSource.getDoubleColumnDisplay()
             )
         }
+    }
+
+    /**
+     * Reloads the group map when the host activity returns to the foreground. Imports
+     * routed through UrlSchemeActivity → AngConfigManager bypass this ViewModel, so the
+     * resumed screen must re-read MMKV to show the imported subscription (or drop the
+     * empty-state HWID row). Skipped while a ViewModel-owned import is in flight — its
+     * own completion path calls [setupGroupTab]. MMKV reads only.
+     */
+    fun onHostResumed() {
+        if (_uiState.value.importInProgress) return
+        setupGroupTab(forceRefresh = true)
     }
 
     // ---------- Group & server loading ----------
@@ -544,6 +557,21 @@ class MainViewModel(
                     )
                 }
                 groups.forEach { mutableServerGroupState(it.id) }
+
+                // Shroxy empty state: provision the persistent HWID lazily, on the first
+                // pass that finds no visible subscription, so a normal start with subs
+                // never generates one. MmkvManager.ensureHwid is idempotent, so a lost
+                // race with a concurrent pass yields the same stored value.
+                if (groups.isEmpty() && _uiState.value.hwid == null) {
+                    val hwid = dataSource.ensureHwid()
+                    _uiState.update { state ->
+                        if (state.groups.isEmpty() && state.hwid == null) {
+                            state.copy(hwid = hwid)
+                        } else {
+                            state
+                        }
+                    }
+                }
 
                 if (groups.isEmpty()) {
                     cacheMutex.withLock { groupDataCache.clear() }
@@ -1179,6 +1207,14 @@ class MainViewModel(
     }
 
     // ---------- Shroxy settings ----------
+    /** Copies the empty-state HWID to the clipboard and confirms with a snackbar. */
+    private fun copyHwid(hwid: String) {
+        viewModelScope.launch(ioDispatcher) {
+            dataSource.copyToClipboard(hwid)
+            _snackbarEvent.send(dataSource.getString(R.string.shroxy_hwid_copied))
+        }
+    }
+
     private fun setBypassRu(enabled: Boolean) {
         SettingsManager.setShroxyBypassRu(enabled)
         _uiState.update { it.copy(bypassRu = enabled) }

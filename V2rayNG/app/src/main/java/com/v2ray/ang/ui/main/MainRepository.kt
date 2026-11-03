@@ -150,6 +150,10 @@ class MainRepository(
 
     override fun getClipboardContent(): String = Utils.getClipboard(app)
 
+    override fun copyToClipboard(text: String) = Utils.setClipboard(app, text)
+
+    override fun ensureHwid(): String = MmkvManager.ensureHwid()
+
     override fun removeSubscription(subscriptionId: String) =
         MmkvManager.removeSubscription(subscriptionId)
 

@@ -23,6 +23,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.IntOffset
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.lifecycleScope
 import com.v2ray.ang.AngApplication
 import com.v2ray.ang.AppConfig
@@ -119,9 +121,21 @@ class MainActivity : HelperBaseComponentActivity() {
             if (restartService || selectedProfileSaved) LauncherManager.restartService(this)
         }
 
+    // False until the first ON_RESUME completes: the ViewModel loads groups at creation,
+    // so only later resumes — returns from UrlSchemeActivity or other external activities
+    // whose deep-link import bypasses this ViewModel (AngConfigManager writes MMKV
+    // directly) — must reload the group state.
+    private var resumedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         mainViewModel.onAction(MainAction.Initialize)
+        lifecycle.addObserver(LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (resumedOnce) mainViewModel.onHostResumed()
+                resumedOnce = true
+            }
+        })
 
         checkAndRequestPermission(PermissionType.POST_NOTIFICATIONS) {}
     }

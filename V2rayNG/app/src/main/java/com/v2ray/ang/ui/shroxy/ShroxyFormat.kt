@@ -78,5 +78,16 @@ fun pingUiState(isTesting: Boolean, resultMillis: Long?): ShroxyPingUiState = wh
     else -> ShroxyPingUiState.Idle
 }
 
-/** The empty state is visible only when there is no subscription group at all. */
+/**
+ * The empty state is visible only when there is no subscription group at all.
+ */
 fun showEmptyState(groupCount: Int): Boolean = groupCount == 0
+
+/**
+ * Content-zone gate of the Shroxy home screen: while a subscription import is in
+ * flight the empty state — including the HWID row — hides so the skeleton card owns
+ * the zone and the first import lands where its card will appear; with groups
+ * present the empty state never shows.
+ */
+fun showEmptyState(groupCount: Int, importInProgress: Boolean): Boolean =
+    showEmptyState(groupCount) && !importInProgress

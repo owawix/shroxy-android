@@ -63,6 +63,14 @@ class ShroxyFormatTest {
     }
 
     @Test
+    fun emptyStateIncludingHwidRowHidesWhileImportInProgress() {
+        assertTrue(showEmptyState(0, importInProgress = false))
+        assertFalse(showEmptyState(0, importInProgress = true))
+        assertFalse(showEmptyState(1, importInProgress = false))
+        assertFalse(showEmptyState(1, importInProgress = true))
+    }
+
+    @Test
     fun serverDelayHidesNullAndUnmeasured() {
         assertEquals(null, formatServerDelay(null))
         assertEquals(null, formatServerDelay(0L))

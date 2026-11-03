@@ -214,6 +214,42 @@ class MainViewModelTest {
     }
 
     @Test
+    fun hostResumeSkipsGroupReloadWhileImportIsInProgress() {
+        val dataSource = newDataSource()
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        runBlocking {
+            whenever(dataSource.ensureHwid()).thenReturn("stubhwid0000001")
+            whenever(dataSource.getClipboardContent()).thenReturn("vmess://config")
+            whenever(dataSource.importBatchConfig(any<String>(), any<String>(), any<Boolean>()))
+                .thenAnswer {
+                    entered.countDown()
+                    release.await(5, TimeUnit.SECONDS)
+                    1 to 0
+                }
+            whenever(dataSource.getString(any<Int>(), any<Array<Any>>())).thenReturn("imported")
+        }
+        val viewModel = newViewModel(dataSource)
+        // The initial group pass has completed before the import starts.
+        awaitTrue(5_000) { viewModel.uiState.value.hwid == "stubhwid0000001" }
+
+        viewModel.onAction(MainAction.ImportClipboard)
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        assertTrue(viewModel.uiState.value.importInProgress)
+
+        // A resume while the import runs must not dispatch a competing reload; the
+        // import path refreshes the groups itself on completion.
+        viewModel.onHostResumed()
+        // Give any (incorrect) reload dispatched on Dispatchers.IO time to surface.
+        Thread.sleep(200)
+        runBlocking { verify(dataSource, times(1)).getSubscriptions() }
+
+        release.countDown()
+        awaitTrue(5_000) { !viewModel.uiState.value.importInProgress }
+        runBlocking { verify(dataSource, timeout(5_000).times(2)).getSubscriptions() }
+    }
+
+    @Test
     fun importBatchConfigSetsInProgressFlagAndClearsItAfterImport() {
         val dataSource = newDataSource()
         val entered = CountDownLatch(1)

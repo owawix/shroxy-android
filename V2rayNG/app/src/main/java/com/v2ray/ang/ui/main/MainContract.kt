@@ -35,7 +35,13 @@ data class MainUiState(
     /** A clipboard/QR/batch import is running; the Shroxy screen shows the skeleton card. */
     val importInProgress: Boolean = false,
     /** Shroxy "Edit subscription" dialog; null = closed. Keyed by subscription GUID. */
-    val subscriptionEditDialog: SubscriptionEditUiState? = null
+    val subscriptionEditDialog: SubscriptionEditUiState? = null,
+    /**
+     * Persistent Shroxy HWID shown only while no subscription exists; null = not yet
+     * provisioned (generated lazily on the first empty-state render, never at a normal
+     * start with subscriptions).
+     */
+    val hwid: String? = null,
 )
 
 /**
@@ -114,4 +120,11 @@ sealed interface MainAction {
 
     /** Toggle Shroxy bypass-RU routing; restarts the core when the service is running. */
     data class SetBypassRu(val enabled: Boolean) : MainAction
+
+    /**
+     * Copies the persistent Shroxy HWID (shown in the empty state) to the clipboard and
+     * confirms with a snackbar. Carries the value from the rendered state so the handler
+     * copies exactly what the user saw.
+     */
+    data class CopyHwid(val hwid: String) : MainAction
 }

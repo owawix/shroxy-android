@@ -21,4 +21,7 @@
     <string name="shroxy_import_in_progress">Импорт уже выполняется</string>
     <string name="shroxy_sub_updating">Обновление подписки</string>
     <string name="shroxy_sub_updated">Подписка обновлена</string>
+    <string name="shroxy_hwid_label">HWID:</string>
+    <string name="shroxy_hwid_copy">Скопировать HWID</string>
+    <string name="shroxy_hwid_copied">HWID скопирован</string>
 </resources>

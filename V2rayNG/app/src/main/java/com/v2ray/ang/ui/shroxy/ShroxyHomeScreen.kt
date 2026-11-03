@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.QrCodeScanner
@@ -42,7 +44,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -150,8 +155,9 @@ fun ShroxyHomeScreen(
                 // While an import runs, the skeleton card sits above the group list (or in
                 // place of the empty state, so the first import lands where its card will
                 // appear); the bottom pills stay visible either way.
-                if (showEmptyState(groups.size) && !uiState.importInProgress) {
+                if (showEmptyState(groups.size, uiState.importInProgress)) {
                     ShroxyEmptyContentZone(
+                        hwid = uiState.hwid,
                         onOpenPurchaseLink = onOpenPurchaseLink,
                         onAction = onAction,
                     )
@@ -198,12 +204,17 @@ fun ShroxyHomeScreen(
  */
 @Composable
 private fun ShroxyEmptyContentZone(
+    hwid: String?,
     onOpenPurchaseLink: () -> Unit,
     onAction: (MainAction) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f)) {
-            ShroxyEmptyState(onOpenPurchaseLink = onOpenPurchaseLink)
+            ShroxyEmptyState(
+                hwid = hwid,
+                onOpenPurchaseLink = onOpenPurchaseLink,
+                onAction = onAction,
+            )
         }
         ShroxyBottomPills(onAction = onAction)
     }
@@ -312,7 +323,11 @@ private fun ShroxyGroupList(
 }
 
 @Composable
-private fun ShroxyEmptyState(onOpenPurchaseLink: () -> Unit) {
+private fun ShroxyEmptyState(
+    hwid: String?,
+    onOpenPurchaseLink: () -> Unit,
+    onAction: (MainAction) -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -340,6 +355,46 @@ private fun ShroxyEmptyState(onOpenPurchaseLink: () -> Unit) {
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.bodyMedium,
             textDecoration = TextDecoration.Underline,
+        )
+        hwid?.let {
+            Spacer(modifier = Modifier.height(24.dp))
+            ShroxyHwidRow(hwid = it, onAction = onAction)
+        }
+    }
+}
+
+/**
+ * The persistent HWID shown only while no subscription exists, rendered inside the
+ * empty state (hidden whenever groups exist or an import shows the skeleton). The whole
+ * row is one activation target: [clickable] merges the label and value texts, so
+ * TalkBack exposes a single node named "HWID: <value>" with the localized
+ * "Copy HWID" action instead of duplicate descendant labels. Tapping dispatches
+ * [MainAction.CopyHwid]; the ViewModel writes the clipboard and emits the snackbar.
+ */
+@Composable
+private fun ShroxyHwidRow(hwid: String, onAction: (MainAction) -> Unit) {
+    Row(
+        modifier = Modifier
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(
+                onClickLabel = stringResource(R.string.shroxy_hwid_copy),
+                role = Role.Button,
+            ) { onAction(MainAction.CopyHwid(hwid)) }
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.shroxy_hwid_label),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            text = hwid,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            fontFamily = FontFamily.Monospace,
         )
     }
 }
@@ -429,7 +484,11 @@ private fun ShroxyHomeScreenEmptyPreview() {
                     onCollapseAllClick = {},
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                ShroxyEmptyContentZone(onOpenPurchaseLink = {}, onAction = {})
+                ShroxyEmptyContentZone(
+                    hwid = "hwid-sample-0001",
+                    onOpenPurchaseLink = {},
+                    onAction = {},
+                )
             }
         }
     }

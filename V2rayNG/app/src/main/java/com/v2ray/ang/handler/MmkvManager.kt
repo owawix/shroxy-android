@@ -28,6 +28,8 @@ import com.v2ray.ang.util.Utils
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import java.security.SecureRandom
+import java.util.Random
 
 internal class ProfileStorageException(message: String) : IllegalStateException(message)
 
@@ -53,6 +55,9 @@ object MmkvManager {
     private const val KEY_GEO_IP_STATUS_OK = "pref_shroxy_geo_ip_status_ok"
     private const val KEY_GEO_SITE_STATUS_OK = "pref_shroxy_geo_site_status_ok"
     private const val KEY_GEO_SCHEDULE_VERSION = "pref_shroxy_geo_schedule_version"
+    private const val KEY_HWID = "pref_shroxy_hwid"
+    private const val HWID_LENGTH = 15
+    private const val HWID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789"
 
     private val recoveryHandler = object : MMKVHandler {
         override fun onMMKVCRCCheckFail(mmapID: String) =
@@ -1098,6 +1103,53 @@ object MmkvManager {
      */
     fun encodeGeoScheduleVersion(value: Int) {
         mainStorage.encode(KEY_GEO_SCHEDULE_VERSION, value)
+    }
+
+    //endregion
+
+    //region Shroxy HWID
+
+    /**
+     * Generates a device HWID: 15 characters drawn from [a-z0-9].
+     * Pure function of the given random source so tests can seed it.
+     *
+     * @param random The source of randomness.
+     * @return The generated HWID.
+     */
+    internal fun generateHwid(random: Random): String {
+        val chars = CharArray(HWID_LENGTH) { HWID_ALPHABET[random.nextInt(HWID_ALPHABET.length)] }
+        return String(chars)
+    }
+
+    /**
+     * Decodes the persisted device HWID.
+     *
+     * @return The stored HWID, or null if none.
+     */
+    fun decodeHwid(): String? {
+        return mainStorage.decodeString(KEY_HWID)
+    }
+
+    /**
+     * Encodes the device HWID.
+     *
+     * @param value The HWID to persist.
+     */
+    fun encodeHwid(value: String) {
+        mainStorage.encode(KEY_HWID, value)
+    }
+
+    /**
+     * Returns the persisted device HWID, generating and persisting a new one on first use.
+     * Called lazily at first need (first subscription fetch / first empty-screen show),
+     * never at app start. Synchronized so concurrent first uses settle on one value.
+     *
+     * @return The device HWID.
+     */
+    @Synchronized
+    fun ensureHwid(): String {
+        decodeHwid()?.let { return it }
+        return generateHwid(SecureRandom()).also { encodeHwid(it) }
     }
 
     //endregion

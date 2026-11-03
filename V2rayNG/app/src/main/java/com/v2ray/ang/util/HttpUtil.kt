@@ -22,6 +22,9 @@ import java.util.concurrent.TimeUnit
 
 object HttpUtil {
 
+    /** Default per-device header injected into subscription requests. */
+    private const val HWID_HEADER = "X-hwid"
+
     /**
      * Converts the domain part of a URL string to its IDN (Punycode, ASCII Compatible Encoding) format.
      *
@@ -172,7 +175,8 @@ object HttpUtil {
 
             val headersMap = JsonUtil.parseHeadersToMap(request.requestHeaders)
             for ((key, value) in headersMap) {
-                LogUtil.d(AppConfig.TAG, "Adding custom header: $key = $value")
+                val loggedValue = if (key.equals(HWID_HEADER, ignoreCase = true)) "<redacted>" else value
+                LogUtil.d(AppConfig.TAG, "Adding custom header: $key = $loggedValue")
                 try {
                     requestBuilder.header(key, value)
                 } catch (_: IllegalArgumentException) {
@@ -203,7 +207,10 @@ object HttpUtil {
                     }
 
                     else -> {
-                        throw IOException("Request failed with status code ${response.code}")
+                        throw SubscriptionFetchException(
+                            statusCode = response.code,
+                            responseHeaders = response.headers.toMultimap().mapValues { it.value.first() },
+                        )
                     }
                 }
             }
@@ -247,6 +254,21 @@ object HttpUtil {
             if (key.equals("User-Agent", ignoreCase = true)) overridden = value
         }
         return overridden ?: subscriptionUserAgent
+    }
+
+    /**
+     * Merges the subscription's custom headers with the device HWID: "X-hwid" defaults
+     * to [hwid] unless the subscription defines its own (matched case-insensitively,
+     * the explicit per-subscription value wins); every other header is preserved.
+     * The caller serializes the result back into the requestHeaders JSON string at the
+     * UrlContentRequest boundary.
+     */
+    fun mergeSubscriptionHeaders(subHeadersJson: String?, hwid: String): Map<String, String> {
+        val headers = JsonUtil.parseHeadersToMap(subHeadersJson)
+        if (headers.keys.none { it.equals(HWID_HEADER, ignoreCase = true) }) {
+            return headers + (HWID_HEADER to hwid)
+        }
+        return headers
     }
 
     /**
@@ -325,6 +347,19 @@ object HttpUtil {
             }
         }
     }
+
+    /**
+     * Thrown when a subscription fetch returns a non-2xx response. Carries the status
+     * code and the response headers so callers can classify panel-specific signals
+     * (such as the Remnawave device-limit header) that the plain message used to
+     * discard. The message keeps the historic "Request failed with status code <n>"
+     * format that subscription-error classification matches on.
+     */
+    class SubscriptionFetchException(
+        val statusCode: Int,
+        val responseHeaders: Map<String, String>,
+        cause: Throwable? = null,
+    ) : IOException("Request failed with status code $statusCode", cause)
 
     fun downloadToFile(
         request: UrlContentRequest,

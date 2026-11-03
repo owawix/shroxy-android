@@ -4,6 +4,7 @@ import android.text.TextUtils
 import android.util.Log
 import com.tencent.mmkv.MMKV
 import com.v2ray.ang.dto.entities.SubscriptionCache
+import com.v2ray.ang.dto.entities.SubscriptionErrorCode
 import com.v2ray.ang.dto.entities.SubscriptionItem
 import com.v2ray.ang.util.JsonUtil
 import com.v2ray.ang.util.Utils
@@ -97,6 +98,20 @@ class SubscriptionLastErrorTest {
     }
 
     @Test
+    fun deviceLimitResponsePersistsDevicesCode() {
+        // Non-2xx with the Remnawave device-limit header: the response headers must
+        // survive the throw and classify as "devices" instead of http_403.
+        withServer(httpResponse("403 Forbidden", "limit", extraHeaders = "X-hwid-Max-Devices-Reached: true\r\n")) { url ->
+            val result = runUpdate(url)
+
+            assertEquals(1, result.failureCount)
+            val saved = savedSubscription(url)
+            assertEquals(SubscriptionErrorCode.DEVICES, saved.lastError)
+            assertNoHostLeak(saved.lastError)
+        }
+    }
+
+    @Test
     fun failedUpdateDoesNotAdvanceLastUpdated() {
         withServer(httpResponse("200 OK", "this is not a subscription")) { url ->
             val result = runUpdate(url)
@@ -169,12 +184,14 @@ class SubscriptionLastErrorTest {
      * Successful updates persist parsed profiles through MmkvManager.saveServerProfiles,
      * which takes a native MMKV lock that cannot run on the JVM. Swap MmkvManager.INSTANCE
      * for a stub that keeps subscription persistence real (the subject of this test) and
-     * no-ops the profile-index write.
+     * no-ops the profile-index write. ensureHwid answers with a fixed value because
+     * updateConfigViaSub injects it into the request headers.
      */
     private fun <T> withProfileWriteStub(block: () -> T): T {
         val delegate = Mockito.mock(MmkvManager::class.java) { invocation ->
             when (invocation.method.name) {
                 "saveServerProfiles" -> null
+                "ensureHwid" -> "stubhwid0000001"
                 "encodeSubscription" -> {
                     val guid = invocation.arguments[0] as String
                     val item = invocation.arguments[1] as SubscriptionItem
@@ -266,9 +283,9 @@ class SubscriptionLastErrorTest {
         }
     }
 
-    private fun httpResponse(code: String, body: String): String {
+    private fun httpResponse(code: String, body: String, extraHeaders: String = ""): String {
         val bytes = body.toByteArray()
-        return "HTTP/1.1 $code\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n$body"
+        return "HTTP/1.1 $code\r\n${extraHeaders}Content-Length: ${bytes.size}\r\nConnection: close\r\n\r\n$body"
     }
 
     private fun assertNoHostLeak(code: String?) {

@@ -23,6 +23,7 @@
     <string name="shroxy_sub_error_http">Subscription update failed (HTTP %1$s)</string>
     <string name="shroxy_sub_error_parse">Subscription update failed: invalid format</string>
     <string name="shroxy_sub_error_empty">Subscription update failed: empty response</string>
+    <string name="shroxy_sub_error_devices">Device limit reached</string>
     <string name="shroxy_sub_error_generic">Subscription update failed</string>
     <string name="shroxy_sub_edit_title">Edit subscription</string>
     <string name="shroxy_sub_edit_url_label">Subscription URL</string>

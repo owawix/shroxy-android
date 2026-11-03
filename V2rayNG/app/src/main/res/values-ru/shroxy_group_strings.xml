@@ -23,6 +23,7 @@
     <string name="shroxy_sub_error_http">Не удалось обновить подписку (HTTP %1$s)</string>
     <string name="shroxy_sub_error_parse">Не удалось обновить подписку: неверный формат</string>
     <string name="shroxy_sub_error_empty">Не удалось обновить подписку: пустой ответ</string>
+    <string name="shroxy_sub_error_devices">Достигнут лимит устройств подписки</string>
     <string name="shroxy_sub_error_generic">Не удалось обновить подписку</string>
     <string name="shroxy_sub_edit_title">Изменить подписку</string>
     <string name="shroxy_sub_edit_url_label">URL подписки</string>

@@ -107,4 +107,56 @@ class HttpUtilTest {
         assertNull(HttpUtil.requestHeadersWithoutUserAgent("{}"))
         assertNull(HttpUtil.requestHeadersWithoutUserAgent(null))
     }
+
+    @Test
+    fun mergeSubscriptionHeadersDefaultsHwidWhenAbsent() {
+        assertEquals(
+            linkedMapOf("X-hwid" to "abc15chars"),
+            HttpUtil.mergeSubscriptionHeaders(null, "abc15chars")
+        )
+        assertEquals(
+            linkedMapOf("X-hwid" to "abc15chars"),
+            HttpUtil.mergeSubscriptionHeaders("{}", "abc15chars")
+        )
+    }
+
+    @Test
+    fun mergeSubscriptionHeadersKeepsSubscriptionHwidOverride() {
+        // The subscription's explicit X-hwid wins; header names match case-insensitively.
+        assertEquals(
+            linkedMapOf("X-hwid" to "sub-device"),
+            HttpUtil.mergeSubscriptionHeaders("""{"X-hwid":"sub-device"}""", "default01")
+        )
+        assertEquals(
+            linkedMapOf("x-hwid" to "sub-device"),
+            HttpUtil.mergeSubscriptionHeaders("""{"x-hwid":"sub-device"}""", "default01")
+        )
+    }
+
+    @Test
+    fun mergeSubscriptionHeadersPreservesOtherKeys() {
+        assertEquals(
+            linkedMapOf("Authorization" to "Bearer t", "User-Agent" to "clash/1", "X-hwid" to "d1"),
+            HttpUtil.mergeSubscriptionHeaders(
+                """{"Authorization":"Bearer t","User-Agent":"clash/1"}""",
+                "d1"
+            )
+        )
+    }
+
+    @Test
+    fun mergeSubscriptionHeadersFallsBackToDefaultOnInvalidJson() {
+        assertEquals(
+            linkedMapOf("X-hwid" to "d1"),
+            HttpUtil.mergeSubscriptionHeaders("not-json{", "d1")
+        )
+    }
+
+    @Test
+    fun mergeSubscriptionHeadersRoundTripsThroughRequestHeadersJson() {
+        // The merged map travels as the UrlContentRequest JSON string boundary: what is
+        // serialized is exactly what gets sent.
+        val merged = HttpUtil.mergeSubscriptionHeaders("""{"Authorization":"Bearer t"}""", "hw123")
+        assertEquals(merged, JsonUtil.parseHeadersToMap(JsonUtil.toJson(merged)))
+    }
 }

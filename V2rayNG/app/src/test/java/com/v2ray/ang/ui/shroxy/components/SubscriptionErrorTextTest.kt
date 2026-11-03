@@ -1,6 +1,7 @@
 package com.v2ray.ang.ui.shroxy.components
 
 import com.v2ray.ang.R
+import com.v2ray.ang.dto.entities.SubscriptionErrorCode
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -26,6 +27,11 @@ class SubscriptionErrorTextTest {
     @Test
     fun emptyCodeMapsToEmptyString() {
         assertEquals(R.string.shroxy_sub_error_empty, subscriptionErrorText("empty")?.resId)
+    }
+
+    @Test
+    fun devicesCodeMapsToDevicesString() {
+        assertEquals(R.string.shroxy_sub_error_devices, subscriptionErrorText(SubscriptionErrorCode.DEVICES)?.resId)
     }
 
     @Test

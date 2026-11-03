@@ -179,6 +179,8 @@ internal fun subscriptionErrorText(errorCode: String?): SubscriptionErrorText? =
         SubscriptionErrorText(R.string.shroxy_sub_error_parse)
     errorCode == SubscriptionErrorCode.EMPTY ->
         SubscriptionErrorText(R.string.shroxy_sub_error_empty)
+    errorCode == SubscriptionErrorCode.DEVICES ->
+        SubscriptionErrorText(R.string.shroxy_sub_error_devices)
     HTTP_ERROR_CODE.matches(errorCode) ->
         SubscriptionErrorText(
             R.string.shroxy_sub_error_http,

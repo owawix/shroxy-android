@@ -46,6 +46,9 @@ object AngConfigManager {
     /** Matches the HTTP status embedded in HttpUtil's IOException message. */
     private val HTTP_STATUS_MESSAGE_REGEX = Regex("status code (\\d+)")
 
+    /** Response header signaling the subscription's device limit is reached (Remnawave convention). */
+    private const val HWID_DEVICE_LIMIT_HEADER = "x-hwid-max-devices-reached"
+
     private data class ParsedProfile(
         val profile: ProfileItem,
         val rawConfig: String? = null,
@@ -500,7 +503,13 @@ object AngConfigManager {
             }
             LogUtil.i(AppConfig.TAG, url)
             val userAgent = it.subscription.userAgent
-            val requestHeaders = it.subscription.requestHeaders
+            // The device HWID rides on every subscription request by default; the
+            // subscription's own "X-hwid" header (case-insensitive) wins when present.
+            // Built once and reused by the proxy fetch, the direct fetch, and the HTML
+            // fallback retry below (which strips only the "User-Agent" entry).
+            val requestHeaders = JsonUtil.toJson(
+                HttpUtil.mergeSubscriptionHeaders(it.subscription.requestHeaders, MmkvManager.ensureHwid())
+            )
             val proxyUsername = SettingsManager.getSocksUsername()
             val proxyPassword = SettingsManager.getSocksPassword()
 
@@ -633,17 +642,32 @@ object AngConfigManager {
 
     /**
      * Classifies a subscription fetch failure into a stable, locale-agnostic error code.
-     * HTTP statuses surface from HttpUtil as "Request failed with status code <n>";
-     * anything else (timeouts, DNS, TLS, refused connections) is "network". The returned
-     * code never contains the URL, host, or port — see [SubscriptionErrorCode].
+     * A non-2xx response carrying a truthy "x-hwid-max-devices-reached" header (matched
+     * case-insensitively) is "devices" on any status; HTTP statuses otherwise surface
+     * from HttpUtil as "Request failed with status code <n>"; anything else (timeouts,
+     * DNS, TLS, refused connections) is "network". The returned code never contains the
+     * URL, host, or port — see [SubscriptionErrorCode].
      */
     internal fun classifySubscriptionFetchError(error: Throwable): String {
+        if (error is HttpUtil.SubscriptionFetchException &&
+            error.responseHeaders.any {
+                it.key.equals(HWID_DEVICE_LIMIT_HEADER, ignoreCase = true) && it.value.isTruthyHeader()
+            }
+        ) {
+            return SubscriptionErrorCode.DEVICES
+        }
         val message = error.message.orEmpty()
         val statusCode = HTTP_STATUS_MESSAGE_REGEX.find(message)?.groupValues?.get(1)?.toIntOrNull()
         if (statusCode != null) {
             return SubscriptionErrorCode.http(statusCode)
         }
         return SubscriptionErrorCode.NETWORK
+    }
+
+    /** True for a non-blank header value other than "false"/"0" (case-insensitive). */
+    private fun String?.isTruthyHeader(): Boolean {
+        if (isNullOrBlank()) return false
+        return !equals("false", ignoreCase = true) && !equals("0")
     }
 
     /**
